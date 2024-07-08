@@ -27,7 +27,7 @@ fastapi==0.111.0
 fastapi-cli==0.0.4
 fastapi-users==13.0.0
 fastapi-users-db-sqlalchemy==6.0.1
-google-ai-generativelanguage==0.6.7
+google-ai-generativelanguage==0.6.6
 google-api-core==2.19.0
 google-api-python-client==2.133.0
 google-auth==2.30.0

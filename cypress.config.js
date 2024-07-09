@@ -10,6 +10,6 @@ module.exports = defineConfig({
     screenshotsFolder: 'tests/cypress/screenshots',
     videosFolder: 'tests/cypress/videos',
     downloadsFolder: 'tests/cypress/downloads',
-    supportFile: false, // Disable the support file
+    supportFile: false,
   },
 });

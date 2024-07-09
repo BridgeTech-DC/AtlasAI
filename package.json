@@ -1,0 +1,15 @@
+{
+  "name": "atlasai",
+  "version": "1.0.0",
+  "description": "This repository contains the backend code for an AI Voice Assistant application built with FastAPI. The application allows users to interact with an AI using text or voice, select from different AI personas, and send emails using the Gmail API.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

@@ -21,5 +21,4 @@ describe('Index, Login, and Sign Up Workflow', () => {
     cy.get('#sign-up-button').click();  // Assuming there's a link or button with id 'sign-up-link' on the login page
     cy.url().should('include', '/sign-up.html');
   });
-});
-  
+}); 

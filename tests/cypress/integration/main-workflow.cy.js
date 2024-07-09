@@ -7,10 +7,10 @@ describe('Index Tests', () => {
       cy.title().should('include', 'BridgeTechDC');
     });
   
-    // it('should navigate to login page on Get Started click', () => {
-    //   cy.get('#get-started-button').click();
-    //   cy.url().should('include', '/log-in.html');
-    // });
+    it('should navigate to login page on Get Started click', () => {
+      cy.get('#get-started-button').click();
+      cy.url().should('include', '/log-in.html');
+    });
   
     // it('should display the logo', () => {
     //   cy.get('#Home-page-logo').should('be.visible');

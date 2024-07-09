@@ -6,6 +6,4 @@ venv/
 .venv/
 .vscode/
 client_secret.json
-API_PREFIX=/api/v1 
-DEBUG=True
 .DS_Store

@@ -406,7 +406,7 @@
         conversationItemsList.innerHTML = ''; // Clear existing list items
         conversations.forEach(conversation => {
           const listItem = document.createElement('li');
-          listItem.textContent = `Conversation ${conversation.id} (Persona: ${conversation.persona.name})`;
+          listItem.textContent = `Conversation ${conversation.id}`;
           listItem.dataset.conversationId = conversation.id;
           listItem.addEventListener('click', () => {
             loadConversation(conversation.id);

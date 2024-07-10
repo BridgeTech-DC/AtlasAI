@@ -4,26 +4,25 @@ from datetime import datetime
 from app.api.persona.schemas import PersonaSchema  # Import the PersonaSchema
 from uuid import UUID
 
-class MessageSchema(BaseModel):
-    """Schema for a message in the conversation history."""
+class MessageResponse(BaseModel):
     id: int
+    conversation_id: UUID
     role: str
     content: str
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        orm_mode: True
 
 class ConversationHistorySchema(BaseModel):
-    """Schema for conversation history."""
-    id: int
+    id: UUID
     user_id: UUID
-    persona: PersonaSchema  # Include persona details
+    persona_id: int
     created_at: datetime
-    messages: List[MessageSchema]
+    messages: List[MessageResponse] = []
 
     class Config:
-        orm_mode = True
+        orm_mode: True
 
 class MessageCreate(BaseModel):
     role: str
@@ -31,7 +30,7 @@ class MessageCreate(BaseModel):
 
 class MessageResponse(BaseModel):
     id: int
-    conversation_id: int
+    conversation_id: UUID
     role: str
     content: str
     created_at: datetime

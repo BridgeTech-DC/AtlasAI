@@ -9,7 +9,7 @@ class EmailDraft(Base):
     __tablename__ = "email_drafts"
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(UUID, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     recipient_name = Column(String, nullable=False)
     user_prompt = Column(Text, nullable=False)
     subject = Column(String, nullable=False)
@@ -23,7 +23,7 @@ class SentEmail(Base):
     __tablename__ = "sent_emails"
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(UUID, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     email_draft_id = Column(Integer, ForeignKey("email_drafts.id", ondelete="CASCADE"), nullable=False)
     recipient_email = Column(String, nullable=False)
     sent_at = Column(DateTime, nullable=False, server_default=func.now())

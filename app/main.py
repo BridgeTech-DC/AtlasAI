@@ -38,7 +38,7 @@ app.include_router(fastapi_users.get_auth_router(auth_backend), prefix="/app/aut
 # Add middleware to the FastAPI instance
 app.add_middleware(JWTAuthMiddleware)
 
-@app.middleware("http")
+@app.middleware("https")
 async def check_and_refresh_token_middleware(request: Request, call_next):
     response = await check_and_refresh_token(request, call_next)
     return response

@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, String, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
+# from app.api.ai.conversations.models import Conversation
+# from app.models import User
 
 from app.database import Base
-from app.models import User 
 class Persona(Base):
     __tablename__ = "personas"
 

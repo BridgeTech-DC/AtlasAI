@@ -19,6 +19,7 @@ from app.config import settings
 from app.api.persona.utils import get_persona_system_message
 from app.api.persona.models import Persona
 from app.api.ai.conversations.models import Conversation
+from uuid import UUID
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = settings.SCOPES.split(",")
@@ -49,7 +50,7 @@ async def get_gmail_service(user: User = Depends(get_current_user), db: AsyncSes
         from traceback import print_exc; print_exc()
         print(e)
 
-async def draft_email(user_prompt: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: int = None):
+async def draft_email(user_prompt: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: UUID = None):
     """Drafts an email using ChatGPT, including subject and body, based on user prompt."""
     try:
         # Fetch the persona details
@@ -170,7 +171,7 @@ def parse_email_header(header_value: str):
         email = header_value.strip()
     return name, email
 
-async def send_email(to: str, subject: str, message_body: str, email_draft_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: int = None):
+async def send_email(to: str, subject: str, message_body: str, email_draft_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: UUID = None):
     """Sends an email using the Gmail API."""
     try:
         service = await get_gmail_service(user=user, db=db)

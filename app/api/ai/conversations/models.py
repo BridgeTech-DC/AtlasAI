@@ -1,16 +1,20 @@
 # app/api/ai/conversation/models.py
+import uuid
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from app.api.google.gmail.models import EmailDraft
+from app.api.persona.models import Persona
 
 from app.database import Base
+
 
 class Conversation(Base):
     __tablename__ = "conversations"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     persona_id = Column(Integer, ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
@@ -25,7 +29,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(UUID, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     role = Column(String, nullable=False)  # "user" or "assistant"
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

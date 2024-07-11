@@ -7,4 +7,3 @@ node_modules
 .venv/
 .vscode/
 client_secret.json
-.DS_Store

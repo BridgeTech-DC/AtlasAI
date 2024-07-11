@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from typing import List
 from app.database import get_async_session
 from app.models import User
@@ -12,6 +12,7 @@ from app.api.ai.conversations.schemas import (
     MessageCreate,
     MessageResponse
 )
+from uuid import UUID
 
 router = APIRouter(tags=["AI Conversation History"])
 
@@ -20,6 +21,7 @@ async def get_conversation_history(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(get_current_user),
 ):
+    print("User details", user)
     statements = select(Conversation).where(Conversation.user_id == user.id).options(
         joinedload(Conversation.persona),
         joinedload(Conversation.messages)
@@ -31,6 +33,7 @@ async def get_conversation_history(
         await db.refresh(conversation, attribute_names=["persona", "messages"])
     return conversations
 
+
 @router.post("/ai/conversations/", response_model=ConversationHistorySchema)
 async def create_conversation_endpoint(
     user: User = Depends(get_current_user),
@@ -38,16 +41,28 @@ async def create_conversation_endpoint(
 ):
     if not user.selected_persona_id:
         user.selected_persona_id = 1  # or any default value logic
+
     conversation = Conversation(
         user_id=user.id,
         persona_id=user.selected_persona_id
     )
     db.add(conversation)
     await db.commit()
+    await db.refresh(conversation)
+
+    # Eagerly load related objects
+    result = await db.execute(
+        select(Conversation)
+        .options(selectinload(Conversation.persona), selectinload(Conversation.messages))
+        .filter(Conversation.id == conversation.id)
+    )
+    conversation = result.scalars().first()
+
+    return conversation  # Return the conversation object
 
 @router.post("/ai/conversations/{conversation_id}/messages", response_model=MessageResponse)
 async def add_message_to_conversation_endpoint(
-    conversation_id: int,
+    conversation_id: UUID,
     message_data: MessageCreate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
@@ -64,7 +79,7 @@ async def add_message_to_conversation_endpoint(
 
 @router.get("/ai/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
 async def get_messages_for_conversation(
-    conversation_id: int,
+    conversation_id: UUID,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):

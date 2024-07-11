@@ -6,6 +6,7 @@ from app.api.auth.manager import get_current_user
 from .schemas import DraftEmailRequest, SendEmailRequest, ContactSearchResponse, ContactSearchRequest
 from .services import draft_email, send_email, search_contacts
 import spacy
+from uuid import UUID
 
 router = APIRouter(tags=["Google Gmail"])
 
@@ -31,7 +32,7 @@ async def draft_email_route(
     draft_request: DraftEmailRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-    conversation_id: int = None
+    conversation_id: UUID = None
 ):
     """Route for drafting an email."""
     # Extract recipient names from user prompt using spaCy NER
@@ -54,7 +55,7 @@ async def send_email_route(
     email_draft_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-    conversation_id: int = None
+    conversation_id: UUID = None
 ):
     """Route for sending an email."""
     return await send_email(

@@ -15,7 +15,7 @@
     const inputOutputArea = document.getElementById('Conversation');
     const formDone = document.querySelector('.w-form-done');
     const formFail = document.querySelector('.w-form-fail');
-    // const formLoading = document.querySelector('.w-loading');
+    const formLoading = document.querySelector('.w-loading');
     const newConversationButton = document.getElementById('newConversationButton');
     const conversationItemsList = document.getElementById('conversation-history');
     const headers = {
@@ -30,23 +30,22 @@
       inputOutputArea.appendChild(messageElement);
     }
 
-    // Function to handle errors
     function handleError(error) {
       console.log(error);
       console.error(error);
-      // formLoading.style.display = 'none';
-      formFail.style.display = 'block';
+      formLoading.style.display = 'none';
       formDone.style.display = 'none';
+      formFail.style.display = 'none';
     }
-
+    
     function handleSuccess() {
-      // formLoading.style.display = 'none';
+      formLoading.style.display = 'none';
       formFail.style.display = 'none';
       formDone.style.display = 'none';
     }
-
+    
     function handleLoading() {
-      // formLoading.style.display = 'block';
+      formLoading.style.display = 'block';
       formFail.style.display = 'none';
       formDone.style.display = 'none';
     }
@@ -127,7 +126,7 @@
       .then(data => {
         console.log('Persona selected:', data);
       })
-      .catch(handleError);
+      .catch();
     }
 
     // Trigger voice recording when the microphone button is clicked
@@ -189,7 +188,6 @@
           displayMessage('System', 'New conversation started.');
 
         } catch (error) {
-          handleError(error);
         }
       }
     }
@@ -197,7 +195,6 @@
     // Handle text input submission
     textInputForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-      handleSuccess();
       handleLoading();  // Show loading
 
       // Ensure a conversation is created or retrieved
@@ -224,10 +221,9 @@
       .then(data => {
         // Display the AI's response in the output area
         displayMessage('Atlas', data.response);
-        // formLoading.style.display = 'none';  // Hide loading when done
-        formFail.style.display = 'none';
+        handleSuccess();
       })
-      .catch(handleError);
+      .catch();
     });
 
     // Helper function to get a cookie by name
@@ -258,7 +254,6 @@
         displayMessage('System', 'New conversation started.');
 
       } catch (error) {
-        handleError(error);
       }
     }
 
@@ -280,7 +275,6 @@
           displayMessage(message.role === 'user' ? 'You' : message.role, message.content);
         });
       } catch (error) {
-        handleError(error);
       }
     }
 
@@ -295,7 +289,6 @@
         i = 1
         conversations.forEach(conversation => {
           const listItem = document.createElement('li');
-          console.log(`Conversation: ${Object.keys(conversation)}`);
           listItem.textContent = `Conversation ${i}`;
           listItem.dataset.conversationId = conversation.id;
           listItem.addEventListener('click', () => {
@@ -305,7 +298,6 @@
           i++;
         });
       } catch (error) {
-        handleError(error);
       }
     }
 
@@ -331,7 +323,6 @@
         document.cookie = `Authorization=Bearer ${data.access_token}; path=/; httponly`;
         console.log('Token refreshed');
       } catch (error) {
-        handleError(error);
       }
     }
 

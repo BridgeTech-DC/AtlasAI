@@ -1,5 +1,5 @@
     // WebSocket and voice interaction logic
-    const socket = new WebSocket('ws://localhost:8000/ws/voice');
+    // const socket = new WebSocket('ws://localhost:8000/ws/voice');
     let selectedPersonaId = 1;
     let currentConversationId = null;
     let mediaRecorder = null;
@@ -51,35 +51,35 @@
       formDone.style.display = 'none';
     }
 
-    socket.onopen = () => {
-      console.log('WebSocket connection opened');
-    };
+    // socket.onopen = () => {
+    //   console.log('WebSocket connection opened');
+    // };
 
-    socket.onmessage = (event) => {
-      let messageData;
-      try {
-        messageData = JSON.parse(event.data);
-      } catch (error) {
-        // Handle cases where the message is not JSON (e.g., audio data)
-        const audioBlob = event.data;
-        const audio = new Audio();
-        const audioURL = URL.createObjectURL(audioBlob);
-        audio.src = audioURL;
-        audio.play();
-        return;
-      }
+    // socket.onmessage = (event) => {
+    //   let messageData;
+    //   try {
+    //     messageData = JSON.parse(event.data);
+    //   } catch (error) {
+    //     // Handle cases where the message is not JSON (e.g., audio data)
+    //     const audioBlob = event.data;
+    //     const audio = new Audio();
+    //     const audioURL = URL.createObjectURL(audioBlob);
+    //     audio.src = audioURL;
+    //     audio.play();
+    //     return;
+    //   }
 
-      if (messageData.error) {
-        handleError(messageData.error);
-      } else {
-        // Handle other types of messages if needed
-      }
-    };
+    //   if (messageData.error) {
+    //     handleError(messageData.error);
+    //   } else {
+    //     // Handle other types of messages if needed
+    //   }
+    // };
 
-    socket.onerror = (error) => {
-      console.log(error);
-      handleError('WebSocket error:', error);
-    };
+    // socket.onerror = (error) => {
+    //   console.log(error);
+    //   handleError('WebSocket error:', error);
+    // };
 
     // let defaultPersona = null;
     // Fetch personas from the backend and populate the dropdown
@@ -292,14 +292,17 @@
         }
         const conversations = await response.json();
         conversationItemsList.innerHTML = ''; // Clear existing list items
+        i = 1
         conversations.forEach(conversation => {
           const listItem = document.createElement('li');
-          listItem.textContent = `Conversation ${conversation.id}`;
+          console.log(`Conversation: ${Object.keys(conversation)}`);
+          listItem.textContent = `Conversation ${i}`;
           listItem.dataset.conversationId = conversation.id;
           listItem.addEventListener('click', () => {
             loadConversation(conversation.id);
           });
           conversationItemsList.appendChild(listItem);
+          i++;
         });
       } catch (error) {
         handleError(error);

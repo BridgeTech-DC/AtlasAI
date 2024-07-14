@@ -318,12 +318,6 @@ button,
   background-color: #dddddd;
 }
 
-.w-loading {
-  display: none;
-  padding: 20px;
-  text-align: center;
-  background-color: #dddddd;
-}
 
 .w-form-fail {
   display: none;

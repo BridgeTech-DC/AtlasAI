@@ -1,5 +1,5 @@
     // WebSocket and voice interaction logic
-    // const socket = new WebSocket('ws://localhost:8000/ws/voice');
+    const socket = new WebSocket('ws://localhost:8000/ws/voice');
     let selectedPersonaId = 1;
     let currentConversationId = null;
     let mediaRecorder = null;
@@ -14,7 +14,6 @@
     const inputTextElement = document.getElementById('Input');
     const inputOutputArea = document.getElementById('Conversation');
     const formDone = document.querySelector('.w-form-done');
-    const formFail = document.querySelector('.w-form-fail');
     const formLoading = document.querySelector('.w-loading');
     const newConversationButton = document.getElementById('newConversationButton');
     const conversationItemsList = document.getElementById('conversation-history');
@@ -30,55 +29,53 @@
       inputOutputArea.appendChild(messageElement);
     }
 
+    // Function to handle errors
     function handleError(error) {
       console.log(error);
       console.error(error);
       formLoading.style.display = 'none';
       formDone.style.display = 'none';
-      formFail.style.display = 'none';
     }
-    
+
     function handleSuccess() {
       formLoading.style.display = 'none';
-      formFail.style.display = 'none';
       formDone.style.display = 'none';
     }
-    
+
     function handleLoading() {
       formLoading.style.display = 'block';
-      formFail.style.display = 'none';
       formDone.style.display = 'none';
     }
 
-    // socket.onopen = () => {
-    //   console.log('WebSocket connection opened');
-    // };
+    socket.onopen = () => {
+      console.log('WebSocket connection opened');
+    };
 
-    // socket.onmessage = (event) => {
-    //   let messageData;
-    //   try {
-    //     messageData = JSON.parse(event.data);
-    //   } catch (error) {
-    //     // Handle cases where the message is not JSON (e.g., audio data)
-    //     const audioBlob = event.data;
-    //     const audio = new Audio();
-    //     const audioURL = URL.createObjectURL(audioBlob);
-    //     audio.src = audioURL;
-    //     audio.play();
-    //     return;
-    //   }
+    socket.onmessage = (event) => {
+      let messageData;
+      try {
+        messageData = JSON.parse(event.data);
+      } catch (error) {
+        // Handle cases where the message is not JSON (e.g., audio data)
+        const audioBlob = event.data;
+        const audio = new Audio();
+        const audioURL = URL.createObjectURL(audioBlob);
+        audio.src = audioURL;
+        audio.play();
+        return;
+      }
 
-    //   if (messageData.error) {
-    //     handleError(messageData.error);
-    //   } else {
-    //     // Handle other types of messages if needed
-    //   }
-    // };
+      if (messageData.error) {
+        handleError(messageData.error);
+      } else {
+        // Handle other types of messages if needed
+      }
+    };
 
-    // socket.onerror = (error) => {
-    //   console.log(error);
-    //   handleError('WebSocket error:', error);
-    // };
+    socket.onerror = (error) => {
+      console.log(error);
+      handleError('WebSocket error:', error);
+    };
 
     // let defaultPersona = null;
     // Fetch personas from the backend and populate the dropdown
@@ -126,7 +123,7 @@
       .then(data => {
         console.log('Persona selected:', data);
       })
-      .catch();
+      .catch(handleError);
     }
 
     // Trigger voice recording when the microphone button is clicked
@@ -188,6 +185,7 @@
           displayMessage('System', 'New conversation started.');
 
         } catch (error) {
+          handleError(error);
         }
       }
     }
@@ -195,6 +193,7 @@
     // Handle text input submission
     textInputForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      handleSuccess();
       handleLoading();  // Show loading
 
       // Ensure a conversation is created or retrieved
@@ -221,9 +220,10 @@
       .then(data => {
         // Display the AI's response in the output area
         displayMessage('Atlas', data.response);
-        handleSuccess();
+        formLoading.style.display = 'none';  // Hide loading when done
+        // formFail.style.display = 'none';
       })
-      .catch();
+      .catch(handleError);
     });
 
     // Helper function to get a cookie by name
@@ -254,6 +254,7 @@
         displayMessage('System', 'New conversation started.');
 
       } catch (error) {
+        handleError(error);
       }
     }
 
@@ -275,6 +276,7 @@
           displayMessage(message.role === 'user' ? 'You' : message.role, message.content);
         });
       } catch (error) {
+        handleError(error);
       }
     }
 
@@ -323,6 +325,7 @@
         document.cookie = `Authorization=Bearer ${data.access_token}; path=/; httponly`;
         console.log('Token refreshed');
       } catch (error) {
+        handleError(error);
       }
     }
 

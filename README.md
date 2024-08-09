@@ -26,7 +26,7 @@ This repository contains the backend code for an AI Voice Assistant application 
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/your-username/your-repository-name.git
+   git clone https://github.com/BridgeTech-DC/AtlasAI.git
    ```
 
 2. **Create a Virtual Environment:**

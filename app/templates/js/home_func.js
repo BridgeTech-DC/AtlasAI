@@ -32,10 +32,12 @@ function displayMessage(role, content) {
 
 // Function to handle errors
 function handleError(error) {
-  console.log(error);
-  console.error(error);
-  formLoading.style.display = 'none';
-  formDone.style.display = 'none';
+  if(formLoading && formDone) {
+    console.log(error);
+    console.error(error);
+    formLoading.style.display = 'none';
+    formDone.style.display = 'none';
+  }
 }
 
 function handleSuccess() {
@@ -179,61 +181,63 @@ async function getOrCreateConversation() {
 }
 
     // Adding an event listener to 'send-input-area' link
-    sendInputArea.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent the default link behavior
-  
-    // Programmatically trigger form submission
-    textInputForm.dispatchEvent(new Event('submit', { 'bubbles': true, 'cancelable': true }));
-    });
-
-
-    // Handle text input submission
-    textInputForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      handleSuccess();
-      handleLoading();  // Show loading
-
-  // Ensure a conversation is created or retrieved
-  await getOrCreateConversation();
-
-  const inputText = inputTextElement.value;
-  inputTextElement.value = ''; // Clear the input field
-
-  // Display the user's message in the output area
-  displayMessage('You', inputText);
-
-  // Show loader while waiting for the response
-  const loader = document.createElement('div');
-  loader.className = 'loader';
-  inputOutputArea.appendChild(loader);
-
-  // Send inputText to FastAPI backend
-  fetch('/api/v1/ai/respond', {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
+    if(sendInputArea) {
+      sendInputArea.addEventListener('click', (event) => {
+        event.preventDefault(); // Prevent the default link behavior
+      
+        // Programmatically trigger form submission
+        textInputForm.dispatchEvent(new Event('submit', { 'bubbles': true, 'cancelable': true }));
+        });
     }
-    return response.json();
-  })
-  .then(data => {
-    // Remove loader
-    inputOutputArea.removeChild(loader);
-
-    // Display the AI's response in the output area
-    displayMessage('Atlas', data.response);
-    formLoading.style.display = 'none';  // Hide loading when done
-    // formFail.style.display = 'none';
-  })
-  .catch(error => {
-    // Remove loader in case of error
-    inputOutputArea.removeChild(loader);
-    handleError(error);
+    // Handle text input submission
+    if(textInputForm) {
+      textInputForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        handleSuccess();
+        handleLoading();  // Show loading
+  
+    // Ensure a conversation is created or retrieved
+    await getOrCreateConversation();
+  
+    const inputText = inputTextElement.value;
+    inputTextElement.value = ''; // Clear the input field
+  
+    // Display the user's message in the output area
+    displayMessage('You', inputText);
+  
+    // Show loader while waiting for the response
+    const loader = document.createElement('div');
+    loader.className = 'loader';
+    inputOutputArea.appendChild(loader);
+  
+    // Send inputText to FastAPI backend
+    fetch('/api/v1/ai/respond', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Remove loader
+      inputOutputArea.removeChild(loader);
+  
+      // Display the AI's response in the output area
+      displayMessage('Atlas', data.response);
+      formLoading.style.display = 'none';  // Hide loading when done
+      // formFail.style.display = 'none';
+    })
+    .catch(error => {
+      // Remove loader in case of error
+      inputOutputArea.removeChild(loader);
+      handleError(error);
+    });
   });
-});
+}
 
 // Helper function to get a cookie by name
 function getCookie(name) {
@@ -264,7 +268,8 @@ async function createNewConversation() {
 }
 
 // Attach event listener to the "New Conversation" button
-newConversationButton.addEventListener('click', createNewConversation);
+if(newConversationButton){ newConversationButton.addEventListener('click', createNewConversation); }
+
 
 // Fetch and display conversation history on page load
 async function loadConversation(conversationId) {
@@ -308,12 +313,6 @@ async function loadConversationHistory() {
   }
 }
 
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-}
-
 // Function to refresh JWT token
 async function refreshJwtToken() {
   try {
@@ -336,3 +335,7 @@ async function refreshJwtToken() {
 setInterval(refreshJwtToken, 30 * 60 * 1000);
 
 loadConversationHistory();    // Call loadConversationHistory on page load
+
+module.exports = {
+  getCookie,
+}

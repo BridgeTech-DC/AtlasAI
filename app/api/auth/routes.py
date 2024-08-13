@@ -119,7 +119,6 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
         flow.fetch_token(authorization_response=request.url._url)
         credentials = flow.credentials
 
-
         async with httpx.AsyncClient() as client:
             user_info = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -127,17 +126,17 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
             )
             user_info = user_info.json()
 
-        # Check if user already exists (you might want to handle this differently)
         existing_user = await db.execute(select(User).where(User.google_id == user_info["sub"]))
         existing_user = existing_user.scalar_one_or_none()
-        if (existing_user):
+
+        if existing_user:
             return RedirectResponse(url="/static/log-in.html?error=user_exists")
 
-        # Create new user
         new_user = User(
             email=user_info["email"],
             hashed_password=None,
             google_id=user_info["sub"],
+            google_username=user_info.get("name"),  # Store Google username
             is_active=True,
             is_verified=True,
         )
@@ -145,7 +144,6 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
         await db.commit()
         await db.refresh(new_user)
 
-        # Store Google Credentials
         google_credentials = GoogleCredentials(
             user_id=new_user.id,
             refresh_token=credentials.refresh_token,
@@ -155,7 +153,6 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
         db.add(google_credentials)
         await db.commit()
 
-        # Generate JWT token and set cookie
         jwt_token = await auth_backend.get_strategy().write_token(new_user)
         response = RedirectResponse(url="/")
         response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
@@ -178,6 +175,60 @@ async def google_login(request: Request):
     )
     return RedirectResponse(authorization_url)
 
+# auth/routes.py
+
+@router.get("/google/signup/callback")
+async def google_signup_callback(request: Request, db: AsyncSession = Depends(get_async_session)):
+    """Callback for Google signup."""
+    try:
+        redirect_uri = request.url_for("google_signup_callback")
+        flow = get_google_flow(redirect_uri)
+        flow.fetch_token(authorization_response=request.url._url)
+        credentials = flow.credentials
+
+        async with httpx.AsyncClient() as client:
+            user_info = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {credentials.token}"},
+            )
+            user_info = user_info.json()
+
+        existing_user = await db.execute(select(User).where(User.google_id == user_info["sub"]))
+        existing_user = existing_user.scalar_one_or_none()
+
+        if existing_user:
+            return RedirectResponse(url="/static/log-in.html?error=user_exists")
+
+        new_user = User(
+            email=user_info["email"],
+            hashed_password=None,
+            google_id=user_info["sub"],
+            google_username=user_info.get("name"),  # Store Google username
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+
+        google_credentials = GoogleCredentials(
+            user_id=new_user.id,
+            refresh_token=credentials.refresh_token,
+            access_token=credentials.token,
+            expires_at=credentials.expiry
+        )
+        db.add(google_credentials)
+        await db.commit()
+
+        jwt_token = await auth_backend.get_strategy().write_token(new_user)
+        response = RedirectResponse(url="/")
+        response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
+        return response
+
+    except Exception as e:
+        print_exc()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 @router.get("/google/login/callback")
 async def google_login_callback(request: Request, db: AsyncSession = Depends(get_async_session)):
     """Callback for Google login."""
@@ -187,7 +238,6 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
         flow.fetch_token(authorization_response=request.url._url)
         credentials = flow.credentials
 
-
         async with httpx.AsyncClient() as client:
             user_info = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -195,16 +245,14 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
             )
             user_info = user_info.json()
 
-        # Find existing user
         result = await db.execute(
             select(User).options(joinedload(User.google_credentials)).where(User.google_id == user_info["sub"])
         )
         user = result.scalar_one_or_none()
+
         if not user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found. Please sign up.")
-        
-        print("Refresh token",credentials.refresh_token)
-        # Update Google credentials if a new refresh token is provided
+
         if user.google_credentials is None:
             google_credentials = GoogleCredentials(
                 user_id=user.id,
@@ -218,9 +266,13 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
                 user.google_credentials.refresh_token = credentials.refresh_token
                 user.google_credentials.access_token = credentials.token
                 user.google_credentials.expires_at = credentials.expiry
+
+        # Update Google username if it has changed
+        if user.google_username != user_info.get("name"):
+            user.google_username = user_info.get("name")
+
         await db.commit()
 
-        # Generate JWT token and set cookie
         jwt_token = await auth_backend.get_strategy().write_token(user)
         response = RedirectResponse(url="/")
         response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
@@ -229,7 +281,7 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
     except Exception as e:
         print_exc()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
+    
 # --- Refresh Token ---
 @router.post("/auth/jwt/refresh")
 async def refresh_jwt_token(response: Response, user: User = Depends(get_current_user)):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.models import User
@@ -15,8 +15,8 @@ nlp = spacy.load("en_core_web_sm")
 
 def extract_names(prompt):
     doc = nlp(prompt)
-    names = [ent.text for ent in doc.ents if ent.label_ in {"PERSON", "ORG"}]
-    return names
+    proper_nouns = [token.text for token in doc if token.pos_ == "PROPN"]
+    return proper_nouns
 
 @router.post("/gmail/search_contacts", response_model=ContactSearchResponse)
 async def search_contacts_route(
@@ -25,7 +25,8 @@ async def search_contacts_route(
     db: AsyncSession = Depends(get_async_session)
 ):
     """Route for searching contacts."""
-    return await search_contacts(contact_search_request.recipient_name, user, db)
+    recipient_names = contact_search_request.recipient_name
+    return await search_contacts(recipient_names, user, db)
 
 @router.post("/gmail/draft", response_model=dict)
 async def draft_email_route(
@@ -55,16 +56,31 @@ async def send_email_route(
     email_draft_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session),
-    conversation_id: UUID = None
+    conversation_id: UUID = None,
+    request: Request = None
 ):
     """Route for sending an email."""
-    return await send_email(
-        send_request.to,
-        send_request.subject,
-        send_request.message_body,
-        email_draft_id,
-        user,
-        db,
-        conversation_id
-    )
+    try:
+        # Log the request details
+        print(f"Request body: {await request.json()}")
+        print(f"User: {user}")
+        print(f"DB session: {db}")
 
+        # Ensure db session is not None
+        if db is None:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database session is None")
+
+        return await send_email(
+            send_request.to,
+            send_request.subject,
+            send_request.message_body,
+            email_draft_id,
+            request,
+            user,
+            db,
+            conversation_id
+        )
+    except Exception as e:
+        print(f"Exception occurred: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error sending email: {e}")
+        

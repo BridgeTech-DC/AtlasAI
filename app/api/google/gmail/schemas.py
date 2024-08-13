@@ -13,7 +13,7 @@ class SendEmailRequest(BaseModel):
 
 class ContactSearchRequest(BaseModel):  # New schema for contact search
     """Request schema for searching contacts."""
-    recipient_name: str
+    recipient_name: List[str]  # Corrected type: List of strings
 
 class RecipientSchema(BaseModel):  # New schema for a recipient with name and email
     """Schema for a recipient with name and email."""

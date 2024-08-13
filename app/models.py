@@ -23,6 +23,7 @@ class User(Base, SQLAlchemyBaseUserTableUUID):
     is_superuser = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     google_id = Column(String, unique=True, index=True, nullable=True)
+    google_username = Column(String, nullable=True)  # New field for Google username
     selected_persona_id = Column(Integer, ForeignKey("personas.id"), nullable=True)
     google_credentials = relationship("GoogleCredentials", back_populates="user", uselist=False)
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan") # Add this relationship

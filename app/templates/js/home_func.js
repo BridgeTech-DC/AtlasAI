@@ -10,7 +10,8 @@
     const selectedPersonaName = 'Atlas';
     // document.getElementById('selected-persona-name');
     const startRecordingButton = document.getElementById('startRecordingButton');
-    const textInputForm = document.getElementById('Text-Input');
+    const textInputForm = document.getElementById('Conversation-Text-Input');
+    const sendInputArea = document.getElementById('send-input-area');
     const inputTextElement = document.getElementById('Input');
     const inputOutputArea = document.getElementById('Conversation');
     const formDone = document.querySelector('.w-form-done');
@@ -189,6 +190,15 @@
         }
       }
     }
+
+    // Adding an event listener to 'send-input-area' link
+    sendInputArea.addEventListener('click', (event) => {
+    event.preventDefault(); // Prevent the default link behavior
+  
+    // Programmatically trigger form submission
+    textInputForm.dispatchEvent(new Event('submit', { 'bubbles': true, 'cancelable': true }));
+    });
+
 
     // Handle text input submission
     textInputForm.addEventListener('submit', async (event) => {

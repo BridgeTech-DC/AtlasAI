@@ -1,9 +1,11 @@
 // WebSocket and voice interaction logic
 // const socket = new WebSocket('ws://localhost:8000/ws/voice');
-let selectedPersonaId = 1;
+
 global.state = {
   currentConversationId: null,
 };
+
+let selectedPersonaId = 1;
 let mediaRecorder = null;
 let audioChunks = []; // Array to store audio chunks
 
@@ -21,7 +23,7 @@ const newConversationButton = document.getElementById('newConversationButton');
 const conversationItemsList = document.getElementById('conversation-history');
 const headers = {
   'Content-Type': 'application/json',
-  'Authorization': 'Bearer ' + getCookie('Authorization')
+  'Authorization': 'Bearer ' + getCookie('Authorization'),
 };
 
 // Function to display a message in the output area
@@ -46,6 +48,7 @@ function handleError(error) {
   }
 }
 
+// Function to handle success by hiding loading indicators
 function handleSuccess() {
   const formLoading = document.querySelector('.w-loading');
   const formDone = document.querySelector('.w-form-done');
@@ -58,6 +61,7 @@ function handleSuccess() {
   }
 }
 
+// Function to show loading indicator
 function handleLoading() {
   const formLoading = document.querySelector('.w-loading');
   const formDone = document.querySelector('.w-form-done');
@@ -121,9 +125,9 @@ function handleLoading() {
 // Function to select a persona
 function selectPersona(personaId) {
   selectedPersonaId = personaId;
-  // const selectedPersona = document.querySelector(`#persona-dropdown-list a[data-persona-id="${personaId}"]`);
   const selectedPersona = 'Atlas';
   selectedPersonaName.textContent = selectedPersona ? selectedPersona.textContent : 'Atlas';
+
   // Send selected persona ID to the backend
   fetch(`/api/v1/personas/select/${selectedPersonaId}`, {
     method: 'POST',
@@ -139,6 +143,31 @@ function selectPersona(personaId) {
     console.log('Persona selected:', data);
   })
   .catch(handleError);
+}
+
+// Function to get or create a conversation
+async function getOrCreateConversation() {
+  if (!global.state.currentConversationId) {
+    try {
+      const response = await fetch('/api/v1/ai/conversations', {
+        method: 'POST',
+        headers: headers,
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create conversation');
+      }
+      const data = await response.json();
+      global.state.currentConversationId = data.id; // Set currentConversationId in global state
+
+      const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
+      if (inputOutputArea) {
+        inputOutputArea.innerHTML = ''; // Clear the conversation area
+        displayMessage('System', 'New conversation started.');
+      }
+    } catch (error) {
+      handleError(error);
+    }
+  }
 }
 
 // Trigger voice recording when the microphone button is clicked
@@ -175,39 +204,6 @@ function selectPersona(personaId) {
 //   }
 // });
 
-// Function to get or create a conversation
-async function getOrCreateConversation() {
-  console.log('Current Conversation ID at start:', global.state.currentConversationId);
-  if (!global.state.currentConversationId) {
-    try {
-      console.log('Making fetch call to create conversation...');
-      const response = await fetch('/api/v1/ai/conversations', {
-        method: 'POST',
-        headers: headers
-      });
-      if (!response.ok) {
-        throw new Error('Failed to create conversation');
-      }
-      const data = await response.json();
-      global.state.currentConversationId = data.id;  // Set currentConversationId in global state
-      console.log('New conversation created:', global.state.currentConversationId);
-
-      const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
-      if (inputOutputArea) {
-        inputOutputArea.innerHTML = ''; // Clear the conversation area
-        displayMessage('System', 'New conversation started.');
-      }
-    } catch (error) {
-      console.log('Error occurred during fetch:', error);
-      handleError(error);
-    }
-  } else {
-    console.log('Using existing conversation:', global.state.currentConversationId);
-  }
-}
-
-
-
 // Event listener for 'send-input-area' link
 if (sendInputArea) {
   sendInputArea.addEventListener('click', (event) => {
@@ -223,7 +219,7 @@ if (textInputForm) {
   textInputForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     handleSuccess();
-    handleLoading();  // Show loading
+    handleLoading(); // Show loading
 
     // Ensure a conversation is created or retrieved
     await getOrCreateConversation();
@@ -246,7 +242,7 @@ if (textInputForm) {
       fetch('/api/v1/ai/respond', {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
+        body: JSON.stringify({ prompt: inputText, conversation_id: global.state.currentConversationId }), // Include conversation_id
       })
       .then(response => {
         if (!response.ok) {
@@ -260,7 +256,7 @@ if (textInputForm) {
 
         // Display the AI's response in the output area
         displayMessage('Atlas', data.response);
-        formLoading.style.display = 'none';  // Hide loading when done
+        formLoading.style.display = 'none'; // Hide loading when done
       })
       .catch(error => {
         // Remove loader in case of error
@@ -283,14 +279,13 @@ async function createNewConversation() {
   try {
     const response = await fetch('/api/v1/ai/conversations', {
       method: 'POST',
-      headers: headers
+      headers: headers,
     });
     if (!response.ok) {
       throw new Error('Failed to create conversation');
     }
     const data = await response.json();
-    currentConversationId = data.id;
-    console.log('New conversation created:', currentConversationId);
+    global.state.currentConversationId = data.id;
 
     const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
     if (inputOutputArea) {
@@ -309,7 +304,7 @@ if (newConversationButton) {
 
 // Fetch and display conversation history on page load
 async function loadConversation(conversationId) {
-  currentConversationId = conversationId;
+  global.state.currentConversationId = conversationId;
   const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
   if (inputOutputArea) {
     inputOutputArea.innerHTML = ''; // Clear the conversation area
@@ -328,6 +323,7 @@ async function loadConversation(conversationId) {
   }
 }
 
+// Fetch and display conversation history
 async function loadConversationHistory() {
   try {
     const response = await fetch('/api/v1/ai/conversations/', { headers: headers });
@@ -357,14 +353,13 @@ async function refreshJwtToken() {
   try {
     const response = await fetch('/api/v1/auth/jwt/refresh', {
       method: 'POST',
-      headers: headers
+      headers: headers,
     });
     if (!response.ok) {
       throw new Error('Failed to refresh token');
     }
     const data = await response.json();
     document.cookie = `Authorization=Bearer ${data.access_token}; path=/; httponly`;
-    console.log('Token refreshed');
   } catch (error) {
     handleError(error);
   }
@@ -373,7 +368,8 @@ async function refreshJwtToken() {
 // Refresh token every 30 minutes (adjust as needed)
 setInterval(refreshJwtToken, 30 * 60 * 1000);
 
-loadConversationHistory();    // Call loadConversationHistory on page load
+// Call loadConversationHistory on page load
+loadConversationHistory();
 
 module.exports = {
   getCookie,
@@ -383,4 +379,4 @@ module.exports = {
   handleLoading,
   selectPersona,
   getOrCreateConversation,
-}
+};

@@ -34,8 +34,10 @@ function displayMessage(role, content) {
 
 // Function to handle errors
 function handleError(error) {
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+  
   if (formLoading && formDone) {
-    console.log(error);
     console.error(error);
     formLoading.style.display = 'none';
     formDone.style.display = 'none';
@@ -252,4 +254,5 @@ loadConversationHistory();    // Call loadConversationHistory on page load
 module.exports = {
   getCookie,
   displayMessage,
+  handleError,
 }

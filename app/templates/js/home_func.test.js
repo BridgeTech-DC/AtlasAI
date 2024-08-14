@@ -1,7 +1,6 @@
 const { getCookie, displayMessage, handleError, handleSuccess, handleLoading, selectPersona, getOrCreateConversation } = require('./home_func'); 
 
 describe('home_func', () => {
-
     describe('getCookie', () => {
         test('should return the value of the specified cookie', () => {
             Object.defineProperty(document, 'cookie', {
@@ -202,15 +201,12 @@ describe('home_func', () => {
         });
     
         test('should create a new conversation and update the conversation area', async () => {
-            console.log("Test Start: currentConversationId =", global.state.currentConversationId);
             // Ensure currentConversationId is initially null
             expect(global.state.currentConversationId).toBeNull();
         
             // Call the function
             await getOrCreateConversation();
-        
-            console.log("After function call: currentConversationId =", global.state.currentConversationId);
-        
+                
             // Verify that the fetch call was made with the correct arguments
             expect(fetchMock).toHaveBeenCalledWith('/api/v1/ai/conversations', {
                 method: 'POST',
@@ -233,14 +229,10 @@ describe('home_func', () => {
         
             // Reset state at the start
             global.state.currentConversationId = null;
-        
-            console.log("Test Start: currentConversationId =", global.state.currentConversationId);
-        
+                
             // Call the function
             await getOrCreateConversation();
-        
-            console.log("After function call (error case): currentConversationId =", global.state.currentConversationId);
-        
+                
             // Ensure that fetch was called
             expect(fetchMock).toHaveBeenCalledTimes(1);
         

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1723664818617" clover="3.2.0">
-  <project timestamp="1723664818617" name="All files">
+<coverage generated="1723664876904" clover="3.2.0">
+  <project timestamp="1723664876904" name="All files">
     <metrics statements="138" coveredstatements="59" conditionals="50" coveredconditionals="19" methods="21" coveredmethods="7" elements="209" coveredelements="85" complexity="0" loc="138" ncloc="138" packages="1" files="1" classes="1"/>
     <file name="home_func.js" path="/Users/brandongraham/Documents/codingWork/AtlasAI/app/templates/js/home_func.js">
       <metrics statements="138" coveredstatements="59" conditionals="50" coveredconditionals="19" methods="21" coveredmethods="7"/>

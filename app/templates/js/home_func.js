@@ -1,7 +1,9 @@
 // WebSocket and voice interaction logic
 // const socket = new WebSocket('ws://localhost:8000/ws/voice');
 let selectedPersonaId = 1;
-let currentConversationId = null;
+global.state = {
+  currentConversationId: null,
+};
 let mediaRecorder = null;
 let audioChunks = []; // Array to store audio chunks
 
@@ -45,23 +47,140 @@ function handleError(error) {
 }
 
 function handleSuccess() {
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+
   if (formLoading && formDone) {
     formLoading.style.display = 'none';
     formDone.style.display = 'none';
+  } else {
+    console.error('formLoading or formDone is not defined');
   }
 }
 
 function handleLoading() {
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+
   if (formLoading && formDone) {
     formLoading.style.display = 'block';
     formDone.style.display = 'none';
   }
 }
 
+// socket.onopen = () => {
+//   console.log('WebSocket connection opened');
+// };
+// socket.onmessage = (event) => {
+//   let messageData;
+//   try {
+//     messageData = JSON.parse(event.data);
+//   } catch (error) {
+//     // Handle cases where the message is not JSON (e.g., audio data)
+//     const audioBlob = event.data;
+//     const audio = new Audio();
+//     const audioURL = URL.createObjectURL(audioBlob);
+//     audio.src = audioURL;
+//     audio.play();
+//     return;
+//   }
+//   if (messageData.error) {
+//     handleError(messageData.error);
+//   } else {
+//     // Handle other types of messages if needed
+//   }
+// };
+// socket.onerror = (error) => {
+//   console.log(error);
+//   handleError('WebSocket error:', error);
+// };
+// let defaultPersona = null;
+// Fetch personas from the backend and populate the dropdown
+// fetch('/api/v1/personas/')
+//   .then(response => response.json())
+//   .then(personas => {
+//     if (personas.length > 0) {
+//       // Set the first persona as the default
+//       defaultPersona = personas[0];
+//       selectPersona(defaultPersona.id); // Automatically select the default persona on page load
+//     }
+//     personas.forEach(persona => {
+//       const link = document.createElement('a');
+//       link.href = '#';
+//       link.className = 'dropdown-link w-dropdown-link';
+//       link.textContent = persona.name;
+//       link.dataset.personaId = persona.id;
+//       link.addEventListener('click', () => {
+//         selectPersona(persona.id);
+//       });
+//       personaDropdownList.appendChild(link);
+//     });
+//   })
+//   .catch(handleError);
+
+// Function to select a persona
+function selectPersona(personaId) {
+  selectedPersonaId = personaId;
+  // const selectedPersona = document.querySelector(`#persona-dropdown-list a[data-persona-id="${personaId}"]`);
+  const selectedPersona = 'Atlas';
+  selectedPersonaName.textContent = selectedPersona ? selectedPersona.textContent : 'Atlas';
+  // Send selected persona ID to the backend
+  fetch(`/api/v1/personas/select/${selectedPersonaId}`, {
+    method: 'POST',
+    headers: headers,
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to select persona');
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Persona selected:', data);
+  })
+  .catch(handleError);
+}
+
+// Trigger voice recording when the microphone button is clicked
+// startRecordingButton.addEventListener('click', () => {
+//   if (socket.readyState === WebSocket.OPEN && selectedPersonaId !== null && currentConversationId !== null) {
+//     if (!mediaRecorder) {
+//       // Start recording
+//       navigator.mediaDevices.getUserMedia({ audio: true })
+//         .then(stream => {
+//           mediaRecorder = new MediaRecorder(stream);
+//           mediaRecorder.start();
+//           // Send persona ID and JWT token when recording starts
+//           socket.send(JSON.stringify({
+//             persona_id: selectedPersonaId,
+//             token: getCookie('Authorization').split(' ')[1]
+//           }));
+//           mediaRecorder.ondataavailable = (event) => {
+//             audioChunks.push(event.data);
+//           };
+//           mediaRecorder.onstop = () => {
+//             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+//             audioChunks = [];
+//             socket.send(audioBlob);
+//             mediaRecorder = null;
+//           };
+//         })
+//         .catch(handleError);
+//     } else {
+//       // Stop recording
+//       mediaRecorder.stop();
+//     }
+//   } else {
+//     handleError('WebSocket connection not open or no persona selected');
+//   }
+// });
+
 // Function to get or create a conversation
 async function getOrCreateConversation() {
-  if (!currentConversationId) {
+  console.log('Current Conversation ID at start:', global.state.currentConversationId);
+  if (!global.state.currentConversationId) {
     try {
+      console.log('Making fetch call to create conversation...');
       const response = await fetch('/api/v1/ai/conversations', {
         method: 'POST',
         headers: headers
@@ -70,8 +189,8 @@ async function getOrCreateConversation() {
         throw new Error('Failed to create conversation');
       }
       const data = await response.json();
-      currentConversationId = data.id;  // Set currentConversationId
-      console.log('New conversation created:', currentConversationId);
+      global.state.currentConversationId = data.id;  // Set currentConversationId in global state
+      console.log('New conversation created:', global.state.currentConversationId);
 
       const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
       if (inputOutputArea) {
@@ -79,10 +198,15 @@ async function getOrCreateConversation() {
         displayMessage('System', 'New conversation started.');
       }
     } catch (error) {
+      console.log('Error occurred during fetch:', error);
       handleError(error);
     }
+  } else {
+    console.log('Using existing conversation:', global.state.currentConversationId);
   }
 }
+
+
 
 // Event listener for 'send-input-area' link
 if (sendInputArea) {
@@ -255,4 +379,8 @@ module.exports = {
   getCookie,
   displayMessage,
   handleError,
+  handleSuccess,
+  handleLoading,
+  selectPersona,
+  getOrCreateConversation,
 }

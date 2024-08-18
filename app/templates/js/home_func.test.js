@@ -1,4 +1,4 @@
-const { getCookie, displayMessage, handleError, handleSuccess, handleLoading, selectPersona, getOrCreateConversation } = require('./home_func'); 
+const { getCookie, displayMessage, handleError, handleSuccess, handleLoading, selectPersona, getOrCreateConversation, loadConversation, loadConversationHistory } = require('./home_func'); 
 
 describe('home_func', () => {
     describe('getCookie', () => {
@@ -169,8 +169,6 @@ describe('home_func', () => {
     // });
     // });
 
-    const { getOrCreateConversation } = require('./home_func');
-
     describe('getOrCreateConversation', () => {
         let fetchMock;
         let inputOutputArea;
@@ -243,4 +241,44 @@ describe('home_func', () => {
             expect(inputOutputArea.textContent).not.toContain('New conversation started.');
         });
     });
+
+    describe('loadConversationHistory', () => {
+        let fetchMock;
+        let conversationItemsList;
+      
+        beforeEach(() => {
+          // Set up the DOM element that loadConversationHistory interacts with
+          document.body.innerHTML = `
+            <div id="conversation-history" class="div-block-37 w-node-_1b0fd1d4-1146-d232-c29a-c7a8b2419953-2af2bbc5"></div>
+          `;
+      
+          conversationItemsList = document.getElementById('conversation-history');
+      
+          fetchMock = jest.fn(() =>
+            Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve([
+                { id: 1, title: 'Conversation 1' },
+                { id: 2, title: 'Conversation 2' }
+              ])
+            })
+          );
+          global.fetch = fetchMock;
+        });
+      
+        afterEach(() => {
+          jest.clearAllMocks();
+        });
+      
+        test('should load and display the conversation history correctly', async () => {
+          await loadConversationHistory();
+      
+          const listItems = conversationItemsList.querySelectorAll('li');
+          console.log(listItems.length); // This should now correctly log the number of list items
+          expect(listItems.length).toBe(2);
+          expect(listItems[0].textContent).toBe('Conversation 1');
+          expect(listItems[1].textContent).toBe('Conversation 2');
+        });
+      });
+        
 });

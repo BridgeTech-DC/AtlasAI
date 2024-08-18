@@ -330,8 +330,14 @@ async function loadConversationHistory() {
     if (!response.ok) {
       throw new Error('Failed to load conversation history');
     }
+
     const conversations = await response.json();
+    console.log('Fetched Conversations:', conversations);
+
+    console.log('Before clearing, conversationItemsList:', conversationItemsList); // Log before clearing
     conversationItemsList.innerHTML = ''; // Clear existing list items
+    console.log('After clearing, conversationItemsList:', conversationItemsList); // Log after clearing
+
     let i = 1;
     conversations.forEach(conversation => {
       const listItem = document.createElement('li');
@@ -341,12 +347,17 @@ async function loadConversationHistory() {
         loadConversation(conversation.id);
       });
       conversationItemsList.appendChild(listItem);
+      console.log('Appended List Item:', listItem); // Log each appended item
       i++;
     });
+
+    console.log('Final conversationItemsList:', conversationItemsList.innerHTML); // Log the final state
   } catch (error) {
     handleError(error);
   }
 }
+
+
 
 // Function to refresh JWT token
 async function refreshJwtToken() {
@@ -379,4 +390,6 @@ module.exports = {
   handleLoading,
   selectPersona,
   getOrCreateConversation,
+  loadConversation,
+  loadConversationHistory,
 };

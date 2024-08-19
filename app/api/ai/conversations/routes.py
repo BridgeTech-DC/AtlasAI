@@ -84,5 +84,11 @@ async def get_messages_for_conversation(
     db: AsyncSession = Depends(get_async_session)
 ):
     # Use joinedload to include persona details in the message response
-    messages = await db.execute(select(Message).where(Message.conversation_id == conversation_id).options(joinedload(Message.conversation).joinedload(Conversation.persona)))
+    # Add order_by to sort by message ID in ascending order
+    messages = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .options(joinedload(Message.conversation).joinedload(Conversation.persona))
+        .order_by(Message.id.asc())  # Sort by message ID ascending
+    )
     return messages.scalars().all()

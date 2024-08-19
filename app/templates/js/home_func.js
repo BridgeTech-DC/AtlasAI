@@ -25,9 +25,21 @@ const headers = {
 
 // Function to display a message in the output area
 function displayMessage(role, content) {
-  const messageElement = document.createElement('p');
-  messageElement.textContent = `${role}: ${content}`;
-  inputOutputArea.appendChild(messageElement);
+  const messageContainer = document.createElement('div');
+  messageContainer.classList.add('message-container', role === 'You' ? 'user-message' : 'atlas-message');
+
+  const messageElement = document.createElement('div');
+  messageElement.classList.add('message');
+
+  if (role === 'Atlas') {
+    messageElement.innerHTML = marked.parse(`${role}: ${content}`); // Render as Markdown
+  } else {
+    messageElement.textContent = `${role}: ${content}`;
+  }
+
+  messageContainer.appendChild(messageElement);
+  inputOutputArea.appendChild(messageContainer);
+  inputOutputArea.scrollTop = inputOutputArea.scrollHeight; // Auto-scroll to bottom
 }
 
 // Function to handle errors

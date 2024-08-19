@@ -10,8 +10,7 @@ const personaDropdownList = document.getElementById('persona-dropdown-list');
 const selectedPersonaName = 'Atlas';
 // document.getElementById('selected-persona-name');
 const startRecordingButton = document.getElementById('startRecordingButton');
-const textInputForm = document.getElementById('Conversation-Text-Input');
-const sendInputArea = document.getElementById('send-input-area');
+const textInputForm = document.getElementById('Text-Input');
 const inputTextElement = document.getElementById('Input');
 const inputOutputArea = document.getElementById('Conversation');
 const formDone = document.querySelector('.w-form-done');
@@ -190,20 +189,11 @@ async function getOrCreateConversation() {
   }
 }
 
-    // Adding an event listener to 'send-input-area' link
-    sendInputArea.addEventListener('click', (event) => {
-    event.preventDefault(); // Prevent the default link behavior
-  
-    // Programmatically trigger form submission
-    textInputForm.dispatchEvent(new Event('submit', { 'bubbles': true, 'cancelable': true }));
-    });
-
-
-    // Handle text input submission
-    textInputForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      handleSuccess();
-      handleLoading();  // Show loading
+// Handle text input submission
+textInputForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  handleSuccess();
+  handleLoading();  // Show loading
 
   // Ensure a conversation is created or retrieved
   await getOrCreateConversation();

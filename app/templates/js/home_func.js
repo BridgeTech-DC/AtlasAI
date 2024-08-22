@@ -1,5 +1,10 @@
 // WebSocket and voice interaction logic
 // const socket = new WebSocket('ws://localhost:8000/ws/voice');
+
+global.state = {
+  currentConversationId: null,
+};
+
 let selectedPersonaId = 1;
 let currentConversationId = null;
 let mediaRecorder = null;
@@ -24,6 +29,13 @@ const headers = {
 
 // Function to display a message in the output area
 function displayMessage(role, content) {
+  const inputOutputArea = document.getElementById('Conversation'); // Dynamically access the element
+  
+  if (!inputOutputArea) {
+    console.error('Conversation element not found in the DOM.');
+    return;
+  }
+
   const messageContainer = document.createElement('div');
   messageContainer.classList.add('message-container', role === 'You' ? 'user-message' : 'atlas-message');
 
@@ -43,20 +55,38 @@ function displayMessage(role, content) {
 
 // Function to handle errors
 function handleError(error) {
-  console.log(error);
-  console.error(error);
-  formLoading.style.display = 'none';
-  formDone.style.display = 'none';
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+  
+  if (formLoading && formDone) {
+    console.error(error);
+    formLoading.style.display = 'none';
+    formDone.style.display = 'none';
+  }
 }
 
+// Function to handle success by hiding loading indicators
 function handleSuccess() {
-  formLoading.style.display = 'none';
-  formDone.style.display = 'none';
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+
+  if (formLoading && formDone) {
+    formLoading.style.display = 'none';
+    formDone.style.display = 'none';
+  } else {
+    console.error('formLoading or formDone is not defined');
+  }
 }
 
+// Function to show loading indicator
 function handleLoading() {
-  formLoading.style.display = 'block';
-  formDone.style.display = 'none';
+  const formLoading = document.querySelector('.w-loading');
+  const formDone = document.querySelector('.w-form-done');
+
+  if (formLoading && formDone) {
+    formLoading.style.display = 'block';
+    formDone.style.display = 'none';
+  }
 }
 
 // socket.onopen = () => {
@@ -168,74 +198,84 @@ function selectPersona(personaId) {
 
 // Function to get or create a conversation
 async function getOrCreateConversation() {
-  if (!currentConversationId) {
-    try {
-      const response = await fetch('/api/v1/ai/conversations', {
-        method: 'POST',
-        headers: headers
-      });
-      if (!response.ok) {
-        throw new Error('Failed to create conversation');
+  if (!currentConversationId && !global.state.currentConversationId) {
+      try {
+          const response = await fetch('/api/v1/ai/conversations', {
+              method: 'POST',
+              headers: headers
+          });
+          if (!response.ok) {
+              throw new Error('Failed to create conversation');
+          }
+          const data = await response.json();
+          currentConversationId = data.id;  // Set currentConversationId
+          global.state.currentConversationId = currentConversationId;
+
+          
+          const inputOutputArea = document.getElementById('Conversation');
+          if (!inputOutputArea) {
+              console.error('Conversation element not found in the DOM.');
+              return;
+          }
+          inputOutputArea.innerHTML = '';
+          displayMessage('System', 'New conversation started.');
+      } catch (error) {
+          console.error('Fetch failed:', error);
+          handleError(error);
       }
-      const data = await response.json();
-      currentConversationId = data.id;  // Set currentConversationId
-      console.log('New conversation created:', currentConversationId);
-      // Clear the conversation area and display a message
-      inputOutputArea.innerHTML = '';
-      displayMessage('System', 'New conversation started.');
-    } catch (error) {
-      handleError(error);
-    }
+  } else {
   }
 }
 
 // Handle text input submission
-textInputForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  handleSuccess();
-  handleLoading();  // Show loading
-
-  // Ensure a conversation is created or retrieved
-  await getOrCreateConversation();
-
-  const inputText = inputTextElement.value;
-  inputTextElement.value = ''; // Clear the input field
-
-  // Display the user's message in the output area
-  displayMessage('You', inputText);
-
-  // Show loader while waiting for the response
-  const loader = document.createElement('div');
-  loader.className = 'loader';
-  inputOutputArea.appendChild(loader);
-
-  // Send inputText to FastAPI backend
-  fetch('/api/v1/ai/respond', {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    return response.json();
-  })
-  .then(data => {
-    // Remove loader
-    inputOutputArea.removeChild(loader);
-
-    // Display the AI's response in the output area
-    displayMessage('Atlas', data.response);
-    formLoading.style.display = 'none';  // Hide loading when done
-    // formFail.style.display = 'none';
-  })
-  .catch(error => {
-    // Remove loader in case of error
-    inputOutputArea.removeChild(loader);
-    handleError(error);
+if (textInputForm) {
+  textInputForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    handleSuccess();
+    handleLoading();  // Show loading
+  
+    // Ensure a conversation is created or retrieved
+    await getOrCreateConversation();
+  
+    const inputText = inputTextElement.value;
+    inputTextElement.value = ''; // Clear the input field
+  
+    // Display the user's message in the output area
+    displayMessage('You', inputText);
+  
+    // Show loader while waiting for the response
+    const loader = document.createElement('div');
+    loader.className = 'loader';
+    inputOutputArea.appendChild(loader);
+  
+    // Send inputText to FastAPI backend
+    fetch('/api/v1/ai/respond', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Remove loader
+      inputOutputArea.removeChild(loader);
+  
+      // Display the AI's response in the output area
+      displayMessage('Atlas', data.response);
+      formLoading.style.display = 'none';  // Hide loading when done
+      // formFail.style.display = 'none';
+    })
+    .catch(error => {
+      // Remove loader in case of error
+      inputOutputArea.removeChild(loader);
+      handleError(error);
+    });
   });
-});
+}
 
 // Helper function to get a cookie by name
 function getCookie(name) {
@@ -256,7 +296,6 @@ async function createNewConversation() {
     }
     const data = await response.json();
     currentConversationId = data.id;
-    console.log('New conversation created:', currentConversationId);
     // Clear the conversation area and display a message
     inputOutputArea.innerHTML = '';
     displayMessage('System', 'New conversation started.');
@@ -266,7 +305,9 @@ async function createNewConversation() {
 }
 
 // Attach event listener to the "New Conversation" button
-newConversationButton.addEventListener('click', createNewConversation);
+if (newConversationButton) {
+  newConversationButton.addEventListener('click', createNewConversation);
+}
 
 // Fetch and display conversation history on page load
 async function loadConversation(conversationId) {
@@ -286,14 +327,17 @@ async function loadConversation(conversationId) {
   }
 }
 
-async function loadConversationHistory() {
+// Fetch and display conversation history
+async function loadConversationHistory(conversationItemsList) {
   try {
     const response = await fetch('/api/v1/ai/conversations/', { headers: headers });
     if (!response.ok) {
       throw new Error('Failed to load conversation history');
     }
+
     const conversations = await response.json();
     conversationItemsList.innerHTML = ''; // Clear existing list items
+
     let i = 1;
     conversations.forEach(conversation => {
       const listItem = document.createElement('li');
@@ -305,15 +349,10 @@ async function loadConversationHistory() {
       conversationItemsList.appendChild(listItem);
       i++;
     });
+
   } catch (error) {
     handleError(error);
   }
-}
-
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
 }
 
 // Function to refresh JWT token
@@ -328,7 +367,6 @@ async function refreshJwtToken() {
     }
     const data = await response.json();
     document.cookie = `Authorization=Bearer ${data.access_token}; path=/; httponly`;
-    console.log('Token refreshed');
   } catch (error) {
     handleError(error);
   }
@@ -338,3 +376,15 @@ async function refreshJwtToken() {
 setInterval(refreshJwtToken, 30 * 60 * 1000);
 
 loadConversationHistory();    // Call loadConversationHistory on page load
+
+module.exports = {
+  getCookie, 
+  displayMessage, 
+  handleError, 
+  handleSuccess, 
+  handleLoading, 
+  selectPersona, 
+  getOrCreateConversation, 
+  loadConversation, 
+  loadConversationHistory,
+}

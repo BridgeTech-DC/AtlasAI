@@ -8,3 +8,4 @@ node_modules
 .vscode/
 client_secret.json
 .DS_Store
+alembic.ini

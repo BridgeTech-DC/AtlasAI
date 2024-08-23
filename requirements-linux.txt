@@ -83,7 +83,6 @@ PyJWT==2.8.0
 PyMsgBox==1.0.9
 pyparsing==3.1.2
 pyperclip==1.9.0
-pypiwin32==223
 PyRect==0.2.0
 PyScreeze==0.1.30
 python-dotenv==1.0.1

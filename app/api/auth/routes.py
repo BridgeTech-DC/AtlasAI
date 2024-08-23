@@ -1,5 +1,4 @@
-# auth/routes.py
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Response, File, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi_users import FastAPIUsers
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, JWTStrategy
@@ -9,7 +8,7 @@ from google.auth.transport.requests import Request as GoogleRequest
 from app.config import settings
 from .manager import get_user_manager
 from app.database import get_async_session
-from app.models import User, GoogleCredentials
+from app.models import User as UserModel, GoogleCredentials
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,6 +23,9 @@ from datetime import datetime, timedelta
 from app.api.auth.manager import get_current_user
 from sqlalchemy.orm import joinedload
 import json
+import os
+import shutil
+from .schemas import User  # Import the User schema
 
 SECRET = settings.JWT_SECRET_KEY
 
@@ -38,7 +40,7 @@ auth_backend = AuthenticationBackend(
     get_strategy=get_jwt_strategy,
 )
 
-fastapi_users = FastAPIUsers[User, UUID](
+fastapi_users = FastAPIUsers[UserModel, UUID](
     get_user_manager,
     [auth_backend],
 )
@@ -63,9 +65,7 @@ def get_google_flow(redirect_uri: str) -> Flow:
         redirect_uri=redirect_uri
     )
 
-
-async def refresh_google_token(user: User, db: AsyncSession):
-
+async def refresh_google_token(user: UserModel, db: AsyncSession):
     google_credentials = user.google_credentials
     if google_credentials and google_credentials.refresh_token:
         credentials = Credentials(
@@ -76,7 +76,6 @@ async def refresh_google_token(user: User, db: AsyncSession):
             client_secret=settings.GOOGLE_CLIENT_SECRET,
         )
         credentials.refresh(GoogleRequest())
-        
         # Update the credentials in the database
         google_credentials.access_token = credentials.token
         google_credentials.expires_at = credentials.expiry
@@ -126,20 +125,22 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
             )
             user_info = user_info.json()
 
-        existing_user = await db.execute(select(User).where(User.google_id == user_info["sub"]))
+        existing_user = await db.execute(select(UserModel).where(UserModel.google_id == user_info["sub"]))
         existing_user = existing_user.scalar_one_or_none()
 
         if existing_user:
             return RedirectResponse(url="/static/log-in.html?error=user_exists")
 
-        new_user = User(
+        new_user = UserModel(
             email=user_info["email"],
             hashed_password=None,
             google_id=user_info["sub"],
-            google_username=user_info.get("name"),  # Store Google username
+            google_username=user_info.get("name"),
+            profile_image_url=user_info.get("picture"),  # Store profile image URL
             is_active=True,
             is_verified=True,
         )
+
         db.add(new_user)
         await db.commit()
         await db.refresh(new_user)
@@ -150,12 +151,19 @@ async def google_signup_callback(request: Request, db: AsyncSession = Depends(ge
             access_token=credentials.token,
             expires_at=credentials.expiry
         )
+
         db.add(google_credentials)
         await db.commit()
 
         jwt_token = await auth_backend.get_strategy().write_token(new_user)
         response = RedirectResponse(url="/")
-        response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
+        response.set_cookie(
+            key="Authorization",
+            value=f"Bearer {jwt_token}",
+            httponly=True,
+            samesite="None",
+            secure=True  # Ensure this is only set if you're using HTTPS
+        )
         return response
 
     except Exception as e:
@@ -175,60 +183,6 @@ async def google_login(request: Request):
     )
     return RedirectResponse(authorization_url)
 
-# auth/routes.py
-
-@router.get("/google/signup/callback")
-async def google_signup_callback(request: Request, db: AsyncSession = Depends(get_async_session)):
-    """Callback for Google signup."""
-    try:
-        redirect_uri = request.url_for("google_signup_callback")
-        flow = get_google_flow(redirect_uri)
-        flow.fetch_token(authorization_response=request.url._url)
-        credentials = flow.credentials
-
-        async with httpx.AsyncClient() as client:
-            user_info = await client.get(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {credentials.token}"},
-            )
-            user_info = user_info.json()
-
-        existing_user = await db.execute(select(User).where(User.google_id == user_info["sub"]))
-        existing_user = existing_user.scalar_one_or_none()
-
-        if existing_user:
-            return RedirectResponse(url="/static/log-in.html?error=user_exists")
-
-        new_user = User(
-            email=user_info["email"],
-            hashed_password=None,
-            google_id=user_info["sub"],
-            google_username=user_info.get("name"),  # Store Google username
-            is_active=True,
-            is_verified=True,
-        )
-        db.add(new_user)
-        await db.commit()
-        await db.refresh(new_user)
-
-        google_credentials = GoogleCredentials(
-            user_id=new_user.id,
-            refresh_token=credentials.refresh_token,
-            access_token=credentials.token,
-            expires_at=credentials.expiry
-        )
-        db.add(google_credentials)
-        await db.commit()
-
-        jwt_token = await auth_backend.get_strategy().write_token(new_user)
-        response = RedirectResponse(url="/")
-        response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
-        return response
-
-    except Exception as e:
-        print_exc()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
 @router.get("/google/login/callback")
 async def google_login_callback(request: Request, db: AsyncSession = Depends(get_async_session)):
     """Callback for Google login."""
@@ -246,7 +200,7 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
             user_info = user_info.json()
 
         result = await db.execute(
-            select(User).options(joinedload(User.google_credentials)).where(User.google_id == user_info["sub"])
+            select(UserModel).options(joinedload(UserModel.google_credentials)).where(UserModel.google_id == user_info["sub"])
         )
         user = result.scalar_one_or_none()
 
@@ -267,30 +221,82 @@ async def google_login_callback(request: Request, db: AsyncSession = Depends(get
                 user.google_credentials.access_token = credentials.token
                 user.google_credentials.expires_at = credentials.expiry
 
-        # Update Google username if it has changed
+        # Update Google username and profile image if they have changed
         if user.google_username != user_info.get("name"):
             user.google_username = user_info.get("name")
+        if not user.profile_image_url:  # Only update if profile_image_url is empty
+            user.profile_image_url = user_info.get("picture")
 
         await db.commit()
 
         jwt_token = await auth_backend.get_strategy().write_token(user)
         response = RedirectResponse(url="/")
-        response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
+        response.set_cookie(
+            key="Authorization",
+            value=f"Bearer {jwt_token}",
+            httponly=True,
+            samesite="None",
+            secure=True  # Ensure this is only set if you're using HTTPS
+        )
         return response
 
     except Exception as e:
         print_exc()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+
+@router.post("/auth/upload-profile-picture")
+async def upload_profile_picture(file: UploadFile, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
+    try:
+        # Define the directory and file location
+        directory = "app/templates/media/profile_pictures"
+        file_location = os.path.join(directory, f"{user.id}_{file.filename}")
+
+        # Create the directory if it doesn't exist
+        os.makedirs(directory, exist_ok=True)
+
+        # Save the file
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Update the user's profile image URL
+        user.profile_image_url = f"/static/media/profile_pictures/{user.id}_{file.filename}"
+        await db.commit()
+
+        return {"message": "Profile picture uploaded successfully", "profile_image_url": user.profile_image_url}
+    except Exception as e:
+        print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 # --- Refresh Token ---
 @router.post("/auth/jwt/refresh")
-async def refresh_jwt_token(response: Response, user: User = Depends(get_current_user)):
-    
+async def refresh_jwt_token(response: Response, user: UserModel = Depends(get_current_user)):
     """Endpoint to refresh JWT token."""
     try:
         jwt_token = await auth_backend.get_strategy().write_token(user)
-        response.set_cookie("Authorization", f"Bearer {jwt_token}", httponly=True)
+        response.set_cookie(
+            key="Authorization",
+            value=f"Bearer {jwt_token}",
+            httponly=True,
+            samesite="None",
+            secure=True  # Ensure this is only set if you're using HTTPS
+        )
         return {"access_token": jwt_token}
     except Exception as e:
         print_exc()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+# --- Get User Info ---
+@router.get("/auth/user", response_model=User)
+async def get_user_info(user: UserModel = Depends(get_current_user)):
+    return user
+
+# --- Logout ---
+@router.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(
+        key="Authorization",
+        httponly=True,
+        samesite="None",
+        secure=True  # Ensure this is only set if you're using HTTPS
+    )
+    return {"message": "Successfully logged out"}

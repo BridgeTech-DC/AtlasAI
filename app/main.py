@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, WebSocket
+from fastapi import FastAPI, Depends, WebSocket, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.datastructures import MutableHeaders
@@ -20,8 +20,11 @@ from app.api.persona.voices import handle_voice_interaction # Import the functio
 import logging
 
 logger = logging.getLogger(__name__)
+
 app = FastAPI(title="AI Assistant Backend")
+
 logging.basicConfig(level=logging.DEBUG)
+
 # Define JWTAuthMiddleware
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -30,11 +33,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             headers = MutableHeaders(request.headers)
             headers["Authorization"] = token
             request._headers = headers
-
         response = await call_next(request)
         return response
 
 app.include_router(fastapi_users.get_auth_router(auth_backend), prefix="/app/auth/jwt/login")
+
 # Add middleware to the FastAPI instance
 app.add_middleware(JWTAuthMiddleware)
 
@@ -43,18 +46,17 @@ async def check_and_refresh_token_middleware(request: Request, call_next):
     response = await check_and_refresh_token(request, call_next)
     return response
 
-
-
 # Include API routers
-app.include_router(auth_router, prefix=settings.API_PREFIX) 
+app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(persona_router, prefix=settings.API_PREFIX)
 app.include_router(ai_router, prefix=settings.API_PREFIX)
 app.include_router(conversation_router, prefix=settings.API_PREFIX)
 app.include_router(gmail_router, prefix=settings.API_PREFIX)
 
 templates = Jinja2Templates(directory="app/templates")
-app.mount("/static", StaticFiles(directory="app/templates"), name="static")
 
+# Mount the static files directory
+app.mount("/static", StaticFiles(directory="app/templates"), name="static")
 
 @app.on_event("startup")
 async def startup():
@@ -67,15 +69,15 @@ async def shutdown():
     await engine.dispose()
 
 # CORS Configuration
-if settings.ALLOWED_ORIGINS: 
+if settings.ALLOWED_ORIGINS:
     app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,  # Allow cookies
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,  # Allow cookies
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"]
+    )
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request, user: User = Depends(get_current_user)):
@@ -83,19 +85,6 @@ def root(request: Request, user: User = Depends(get_current_user)):
         return templates.TemplateResponse("home.html", {"request": request})
     else:
         return templates.TemplateResponse("index.html", {"request": request})
-
-# @app.websocket("/ws/voice")
-# async def websocket_endpoint(websocket: WebSocket, user: User = Depends(get_current_user)):
-#     """Handles WebSocket connections for voice interaction."""
-#     try:
-#         print("Are we even here?")
-#         await websocket.accept()
-#         logger.debug("WebSocket connection accepted")
-#         await handle_voice_interaction(websocket, user=user)
-#     except Exception as e:
-#         logger.error(f"Error in WebSocket connection: {e}", exc_info=True)  # Log the error with stack trace
-#         await websocket.close(code=1000)
-
 
 @app.websocket("/ws/voice")
 async def websocket_endpoint(websocket: WebSocket):
@@ -107,8 +96,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await handle_voice_interaction(websocket)
     except Exception as e:
         logger.error(f"Error in WebSocket connection: {e}", exc_info=True)  # Log the error with stack trace
-        
 
 if __name__ == "__main__":
-    import uvicorn 
+    import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

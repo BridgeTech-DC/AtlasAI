@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
+from datetime import datetime
 from .database import Base, get_async_session 
 from .config import settings
 from typing import Optional
@@ -23,10 +24,12 @@ class User(Base, SQLAlchemyBaseUserTableUUID):
     is_superuser = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     google_id = Column(String, unique=True, index=True, nullable=True)
-    google_username = Column(String, nullable=True)  # New field for Google username
+    google_username = Column(String, nullable=True) 
+    profile_image_url = Column(String, nullable=True)  
+    created_at = Column(DateTime, default=datetime.utcnow)
     selected_persona_id = Column(Integer, ForeignKey("personas.id"), nullable=True)
     google_credentials = relationship("GoogleCredentials", back_populates="user", uselist=False)
-    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan") # Add this relationship
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
 
 class GoogleCredentials(Base):
     __tablename__ = "google_credentials"

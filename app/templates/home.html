@@ -20,17 +20,27 @@
 <body class="body-4">
   <div id="settings-modal" class="settings">
     <div class="div-block-72">
-      <div class="text-block-50">Settings</div>
-      <div id="PP-Upload-Box" class="pp-upload-box"></div>
-      <a id="upload-new-profile-picture-button" data-w-id="1f3cad05-91de-f1cf-36cf-a8f5d5127180" href="#" class="upload-new-profile-p-butt w-button">Upload New Profile Picture</a>
-      <div class="div-block-74"></div>
-      <div class="div-block-75">
-        <div class="text-block-51">Current Profile:</div>
-        <div id="Logged-in-user-email-display" class="logged-in-user-email-display">Replace with logged in user email.</div>
-      </div>
-      <a href="#" class="link-block-24 w-inline-block"><img src="/static/images/Close-Filled--Streamline-Carbon-1.png" loading="lazy" data-w-id="272fd9b5-2428-1d6c-95ce-5370b40ba344" id="close-settings" alt="" class="close-settings"></a>
+        <div class="text-block-50">Settings</div>
+        <div id="PP-Upload-Box" class="pp-upload-box">
+            <img id="current-profile-picture" src="" alt="Current Profile Picture" class="avatar-image">
+        </div>
+        <a id="upload-new-profile-picture-button" href="#" class="upload-new-profile-p-butt w-button">Upload New Profile Picture</a>
+        <input type="file" id="profile-picture-input" style="display: none;">
+        <div class="div-block-74"></div>
+        <div class="div-block-75">
+            <div class="text-block-51"><b>Current Profile:</b></div>
+            <div class = "user-info">
+              <div id="Logged-in-user-fullname" class="logged-in-user-fullname">Full Name: </div>
+              <div id="Logged-in-user-email-display" class="logged-in-user-email-display">Email: </div>
+              <div id="Logged-in-user-member-since" class="logged-in-user-member-since">Member Since: </div>
+              <div id="Logged-in-user-subscription" class="logged-in-user-subscription">Subscription: Free</div>
+            </div>
+        </div>
+        <a href="#" class="link-block-24 w-inline-block"><img src="/static/images/Close-Filled--Streamline-Carbon-1.png" loading="lazy" id="close-settings" alt="" class="close-settings"></a>
     </div>
-  </div>
+</div>
+
+
   <div id="sent-confirmation-modal" class="sent-confirm">
     <div class="div-block-69">
         <div class="div-block-70">

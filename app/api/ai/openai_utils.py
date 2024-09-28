@@ -15,7 +15,6 @@ load_dotenv()
 
 # Get OpenAI API key from environment variables
 openai.api_key = settings.OPENAI_API_KEY
-print("OPEN AI KEY",openai.api_key)
 if not openai.api_key:
     raise ValueError("OPENAI_API_KEY environment variable not set.")
 
@@ -51,7 +50,7 @@ async def get_ai_response(prompt: str, user: User, db, conversation_id: UUID = N
         db.add(user_message)
         await db.commit()
         response = client.chat.completions.create(
-            model="gpt-4-turbo-2024-04-09",
+            model="gpt-4o",
             messages=conversation_history,
             max_tokens=400,
             temperature=0.8

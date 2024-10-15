@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Search with Auto-complete</title>
+    <style>
+        #suggestions {
+            border: 1px solid #ccc;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .suggestion-item {
+            padding: 5px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <button onclick="loadContactsIntoCache()">Load Contacts</button>
+    <input type="text" id="search-input" placeholder="Search contacts..." onkeyup="fetchSuggestions()">
+    <div id="suggestions"></div>
+    <script>
+        async function loadContactsIntoCache() {
+            // Call this function when the user opens the contact search interface
+            const response = await fetch('/api/v1/caching/search_contacts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getAuthToken()}` // Ensure you include authentication if required
+                },
+                body: JSON.stringify({ recipient_name: [] }) // Adjust payload as needed
+            });
+            if (response.ok) {
+                console.log('Contacts loaded into cache');
+            } else {
+                console.error('Failed to load contacts into cache');
+            }
+        }
+
+        async function fetchSuggestions() {
+            const query = document.getElementById('search-input').value;
+            if (query.length < 1) {
+                document.getElementById('suggestions').innerHTML = '';
+                return;
+            }
+            const response = await fetch(`/api/v1/caching/auto_complete?query=${query}`, {
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}` // Ensure you include authentication if required
+                }
+            });
+            const suggestions = await response.json();
+            const suggestionsDiv = document.getElementById('suggestions');
+            suggestionsDiv.innerHTML = suggestions.map(contact => `<div class="suggestion-item">${contact.name} &lt;${contact.email}&gt;</div>`).join('');
+        }
+
+        function getAuthToken() {
+            const value = `; ${document.cookie}`;
+            console.log(`; ${document.cookie}`);
+            const parts = value.split(`; Authorization=Bearer `);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+    </script>
+</body>
+</html>

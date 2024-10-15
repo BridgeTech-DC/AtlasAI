@@ -1,46 +1,27 @@
 // WebSocket and voice interaction logic
-
 // const socket = new WebSocket('ws://localhost:8000/ws/voice');
-
 let selectedPersonaId = 1;
-
 let currentConversationId = null;
-
 let mediaRecorder = null;
-
 let audioChunks = []; // Array to store audio chunks
-
 // UI Elements
-
 const personaDropdownList = document.getElementById('persona-dropdown-list');
-
 const selectedPersonaName = 'Atlas';
-
 // document.getElementById('selected-persona-name');
-
 const startRecordingButton = document.getElementById('startRecordingButton');
-
 const textInputForm = document.getElementById('Text-Input');
-
 const inputTextElement = document.getElementById('Input');
-
 const inputOutputArea = document.getElementById('Conversation');
-
 const formDone = document.querySelector('.w-form-done');
-
 const formLoading = document.querySelector('.w-loading');
-
 const newConversationButton = document.getElementById('newConversationButton');
-
 const conversationItemsList = document.getElementById('conversation-history');
-
 const headers = {
   'Content-Type': 'application/json',
   'Authorization': 'Bearer ' + getCookie('Authorization')
 };
 
 // Function to display a message in the output area
-
 function displayMessage(role, content) {
   const messageContainer = document.createElement('div');
   messageContainer.classList.add('message-container', role === 'You' ? 'user-message' : 'atlas-message');
@@ -56,8 +37,16 @@ function displayMessage(role, content) {
   inputOutputArea.scrollTop = inputOutputArea.scrollHeight; // Auto-scroll to bottom
 }
 
-// Function to handle errors
 
+
+function getAuthToken() {
+  const value = `; ${document.cookie}`;
+  console.log(`; ${document.cookie}`);
+  const parts = value.split(`; Authorization=Bearer `);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}  
+
+// Function to handle errors
 function handleError(error) {
   console.log(error);
   console.error(error);
@@ -75,69 +64,11 @@ function handleLoading() {
   formDone.style.display = 'none';
 }
 
-// socket.onopen = () => {
-//   console.log('WebSocket connection opened');
-// };
-
-// socket.onmessage = (event) => {
-//   let messageData;
-//   try {
-//     messageData = JSON.parse(event.data);
-//   } catch (error) {
-//     // Handle cases where the message is not JSON (e.g., audio data)
-//     const audioBlob = event.data;
-//     const audio = new Audio();
-//     const audioURL = URL.createObjectURL(audioBlob);
-//     audio.src = audioURL;
-//     audio.play();
-//     return;
-//   }
-//   if (messageData.error) {
-//     handleError(messageData.error);
-//   } else {
-//     // Handle other types of messages if needed
-//   }
-// };
-
-// socket.onerror = (error) => {
-//   console.log(error);
-//   handleError('WebSocket error:', error);
-// };
-
-// let defaultPersona = null;
-
-// Fetch personas from the backend and populate the dropdown
-
-// fetch('/api/v1/personas/')
-//   .then(response => response.json())
-//   .then(personas => {
-//     if (personas.length > 0) {
-//       // Set the first persona as the default
-//       defaultPersona = personas[0];
-//       selectPersona(defaultPersona.id); // Automatically select the default persona on page load
-//     }
-//     personas.forEach(persona => {
-//       const link = document.createElement('a');
-//       link.href = '#';
-//       link.className = 'dropdown-link w-dropdown-link';
-//       link.textContent = persona.name;
-//       link.dataset.personaId = persona.id;
-//       link.addEventListener('click', () => {
-//         selectPersona(persona.id);
-//       });
-//       personaDropdownList.appendChild(link);
-//     });
-//   })
-//   .catch(handleError);
-
 // Function to select a persona
-
 function selectPersona(personaId) {
   selectedPersonaId = personaId;
-  // const selectedPersona = document.querySelector(`#persona-dropdown-list a[data-persona-id="${personaId}"]`);
   const selectedPersona = 'Atlas';
   selectedPersonaName.textContent = selectedPersona ? selectedPersona.textContent : 'Atlas';
-  // Send selected persona ID to the backend
   fetch(`/api/v1/personas/select/${selectedPersonaId}`, {
     method: 'POST',
     headers: headers,
@@ -154,87 +85,91 @@ function selectPersona(personaId) {
   .catch(handleError);
 }
 
-// Trigger voice recording when the microphone button is clicked
-
-// startRecordingButton.addEventListener('click', () => {
-//   if (socket.readyState === WebSocket.OPEN && selectedPersonaId !== null && currentConversationId !== null) {
-//     if (!mediaRecorder) {
-//       // Start recording
-//       navigator.mediaDevices.getUserMedia({ audio: true })
-//         .then(stream => {
-//           mediaRecorder = new MediaRecorder(stream);
-//           mediaRecorder.start();
-//           // Send persona ID and JWT token when recording starts
-//           socket.send(JSON.stringify({
-//             persona_id: selectedPersonaId,
-//             token: getCookie('Authorization').split(' ')[1]
-//           }));
-//           mediaRecorder.ondataavailable = (event) => {
-//             audioChunks.push(event.data);
-//           };
-//           mediaRecorder.onstop = () => {
-//             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-//             audioChunks = [];
-//             socket.send(audioBlob);
-//             mediaRecorder = null;
-//           };
-//         })
-//         .catch(handleError);
-//     } else {
-//       // Stop recording
-//       mediaRecorder.stop();
-//     }
-//   } else {
-//     handleError('WebSocket connection not open or no persona selected');
-//   }
-// });
-
 // Function to get or create a conversation
-
 async function getOrCreateConversation() {
   if (!currentConversationId) {
     try {
       const response = await fetch('/api/v1/ai/conversations', {
         method: 'POST',
-        headers: headers
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
       });
       if (!response.ok) {
         throw new Error('Failed to create conversation');
       }
       const data = await response.json();
-      currentConversationId = data.id;  // Set currentConversationId
+      currentConversationId = data.id; // Set currentConversationId
       console.log('New conversation created:', currentConversationId);
-      // Clear the conversation area and display a message
       inputOutputArea.innerHTML = '';
       displayMessage('System', 'New conversation started.');
       history.pushState(null, '', `?conversation_id=${currentConversationId}`);
     } catch (error) {
+      console.error('Error in getOrCreateConversation:', error);
       handleError(error);
     }
+  } else {
+    console.log('Using existing conversation ID:', currentConversationId);
+  }
+  return currentConversationId; // Return the current conversation ID
+}
+
+// Function to generate a title for the conversation
+async function generateConversationTitle(conversationId, userPrompt) {
+  try {
+    const response = await fetch(`/api/v1/ai/conversations/${conversationId}/generate-title?message_content=${encodeURIComponent(userPrompt)}`, {
+      method: 'POST',
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${getAuthToken()}`
+      }
+    });
+    if (!response.ok) throw new Error("Failed to generate title");
+    const titleData = await response.json();
+    console.log('Title generated:', titleData);
+    // Refresh the conversation history to show the updated title
+    loadConversationHistory();
+    return titleData;
+  } catch (error) {
+    console.error('Error generating conversation title:', error);
+    handleError(error);
   }
 }
 
-// Handle text input submission
 
+
+// Handle text input submission
 textInputForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   handleSuccess();
   handleLoading();  // Show loading
-  // Ensure a conversation is created or retrieved
   await getOrCreateConversation();
   const inputText = inputTextElement.value;
   inputTextElement.value = ''; // Clear the input field
-  // Display the user's message in the output area
   displayMessage('You', inputText);
-  // Show loader while waiting for the response
   const loader = document.createElement('div');
   loader.className = 'loader';
   inputOutputArea.appendChild(loader);
-  // Send inputText to FastAPI backend
+
+  // Check if it's the first message and title is "New Conversation"
+// Check if it's the first message and title is "New Conversation"
+if (currentConversationId) {
+  const response = await fetch(`/api/v1/ai/conversations/${currentConversationId}/messages`, { headers: headers });
+  if (response.ok) {
+    const messages = await response.json();
+    if (messages.length === 0) {
+      // Generate title for the new conversation
+      await generateConversationTitle(currentConversationId, inputText);
+    }
+  }
+}
+
+
   fetch('/api/v1/ai/respond', {
     method: 'POST',
     headers: headers,
-    body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })  // Include conversation_id
+    body: JSON.stringify({ prompt: inputText, conversation_id: currentConversationId })
   })
   .then(response => {
     if (!response.ok) {
@@ -243,22 +178,17 @@ textInputForm.addEventListener('submit', async (event) => {
     return response.json();
   })
   .then(data => {
-    // Remove loader
     inputOutputArea.removeChild(loader);
-    // Display the AI's response in the output area
     displayMessage('Atlas', data.response);
-    formLoading.style.display = 'none';  // Hide loading when done
-    // formFail.style.display = 'none';
+    formLoading.style.display = 'none';
   })
   .catch(error => {
-    // Remove loader in case of error
     inputOutputArea.removeChild(loader);
     handleError(error);
   });
 });
 
 // Helper function to get a cookie by name
-
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
@@ -266,7 +196,6 @@ function getCookie(name) {
 }
 
 // Function to create a new conversation
-
 async function createNewConversation() {
   try {
     const response = await fetch('/api/v1/ai/conversations', {
@@ -279,7 +208,6 @@ async function createNewConversation() {
     const data = await response.json();
     currentConversationId = data.id;
     console.log('New conversation created:', currentConversationId);
-    // Clear the conversation area and display a message
     inputOutputArea.innerHTML = '';
     displayMessage('System', 'New conversation started.');
     history.pushState(null, '', `?conversation_id=${currentConversationId}`);
@@ -289,14 +217,40 @@ async function createNewConversation() {
 }
 
 // Attach event listener to the "New Conversation" button
-
 newConversationButton.addEventListener('click', (event) => {
   event.preventDefault();
   createNewConversation();
 });
 
-// Fetch and display conversation history on page load
+async function loadSentEmails(conversationId) {
+  try {
+    const response = await fetch(`/api/v1/ai/conversations/${conversationId}/sent-emails`, { headers: headers });
+    if (!response.ok) {
+      throw new Error('Failed to load sent emails');
+    }
+    const emails = await response.json();
+    const inputOutputArea = document.getElementById('Conversation'); // Assuming this is your message display area
 
+    emails.forEach(email => {
+      const emailEntry = document.createElement('div');
+      emailEntry.classList.add('email-entry');
+      emailEntry.innerHTML = `
+        <h4>To: ${email.recipient_email}</h4><br>
+        <p><strong>Subject:</strong> ${email.email_draft.subject}</p><br>
+        <div>${marked.parse(email.email_draft.body)}</div>
+        <p><small>Sent on: ${new Date(email.sent_at).toLocaleString()}</small></p><br>
+      `;
+      inputOutputArea.appendChild(emailEntry);
+    });
+
+    // Auto-scroll to the bottom of the conversation area
+    inputOutputArea.scrollTop = inputOutputArea.scrollHeight;
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+// Modify the loadConversation function to also load sent emails
 async function loadConversation(conversationId) {
   currentConversationId = conversationId;
   inputOutputArea.innerHTML = ''; // Clear the conversation area
@@ -309,13 +263,15 @@ async function loadConversation(conversationId) {
     messages.forEach(message => {
       displayMessage(message.role === 'user' ? 'You' : message.role, message.content);
     });
+    // Load sent emails after loading messages
+    await loadSentEmails(conversationId);
   } catch (error) {
     handleError(error);
   }
 }
 
-let currentPage = 0;
 
+let currentPage = 0;
 const pageSize = 10;
 
 async function loadConversationHistory(page = 0, size = 10) {
@@ -328,17 +284,15 @@ async function loadConversationHistory(page = 0, size = 10) {
     if (page === 0) {
       conversationItemsList.innerHTML = ''; // Clear existing list items only on first load
     }
-    let i = page * size + 1;
     conversations.forEach(conversation => {
       const listItem = document.createElement('li');
-      listItem.textContent = `Conversation ${i}`;
+      listItem.textContent = conversation.title;
       listItem.dataset.conversationId = conversation.id;
       listItem.addEventListener('click', () => {
         loadConversation(conversation.id);
         history.pushState(null, '', `?conversation_id=${conversation.id}`);
       });
       conversationItemsList.appendChild(listItem);
-      i++;
     });
     currentPage = page;
   } catch (error) {
@@ -347,7 +301,6 @@ async function loadConversationHistory(page = 0, size = 10) {
 }
 
 // Load more conversations when the user scrolls to the bottom
-
 conversationItemsList.addEventListener('scroll', () => {
   if (conversationItemsList.scrollTop + conversationItemsList.clientHeight >= conversationItemsList.scrollHeight) {
     loadConversationHistory(currentPage + 1, pageSize);
@@ -355,13 +308,11 @@ conversationItemsList.addEventListener('scroll', () => {
 });
 
 // Helper function to delete a cookie by name
-
 function deleteCookie(name) {
   document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 }
 
 // Event listener for the sign-out button
-
 document.getElementById('Sign-out-button').addEventListener('click', async (event) => {
   event.preventDefault();
   try {
@@ -379,7 +330,6 @@ document.getElementById('Sign-out-button').addEventListener('click', async (even
 });
 
 // Function to fetch user info
-
 async function fetchUserInfo() {
   try {
     const response = await fetch('/api/v1/auth/user', {
@@ -399,17 +349,14 @@ async function fetchUserInfo() {
 }
 
 // Function to display user info in the avatar
-
 function displayUserInfo(user) {
   const avatarElement = document.getElementById('Logged-in-avatar');
   avatarElement.innerHTML = `
     <img src="${user.profile_image_url}" alt="Profile Image" class="avatar-image">
-    <div class="avatar-username">${user.google_username}</div>
   `;
 }
 
 // Function to display user info in the settings modal
-
 function displayUserInfoInSettings(user) {
   const avatarElement = document.getElementById('current-profile-picture');
   const fullnameElement = document.getElementById('Logged-in-user-fullname');
@@ -429,7 +376,6 @@ document.getElementById('close-settings').addEventListener('click', (event) => {
 });
 
 // Function to handle profile picture upload
-
 async function uploadProfilePicture(file) {
   const formData = new FormData();
   formData.append('file', file);
@@ -453,13 +399,11 @@ async function uploadProfilePicture(file) {
 }
 
 // Event listener for the upload button
-
 document.getElementById('upload-new-profile-picture-button').addEventListener('click', () => {
   document.getElementById('profile-picture-input').click();
 });
 
 // Event listener for the file input
-
 document.getElementById('profile-picture-input').addEventListener('change', (event) => {
   const file = event.target.files[0];
   if (file) {
@@ -468,11 +412,9 @@ document.getElementById('profile-picture-input').addEventListener('change', (eve
 });
 
 // Call fetchUserInfo on page load
-
 fetchUserInfo();
 
 // Function to refresh JWT token
-
 async function refreshJwtToken() {
   try {
     const response = await fetch('/api/v1/auth/jwt/refresh', {
@@ -491,11 +433,9 @@ async function refreshJwtToken() {
 }
 
 // Refresh token every 30 minutes (adjust as needed)
-
-setInterval(refreshJwtToken, 30 * 60 * 1000);
+setInterval(refreshJwtToken, 1 * 60 * 1000);
 
 // New code to handle URL parameters and load conversation dynamically
-
 window.addEventListener('popstate', () => {
   const conversationId = new URLSearchParams(window.location.search).get('conversation_id');
   if (conversationId) {

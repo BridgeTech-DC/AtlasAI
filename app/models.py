@@ -30,7 +30,9 @@ class User(Base, SQLAlchemyBaseUserTableUUID):
     selected_persona_id = Column(Integer, ForeignKey("personas.id"), nullable=True)
     google_credentials = relationship("GoogleCredentials", back_populates="user", uselist=False)
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
-
+    scheduled_events = relationship("ScheduledEvent", back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens = relationship("RefreshToken", back_populates="user")
+    
 class GoogleCredentials(Base):
     __tablename__ = "google_credentials"
 
@@ -41,6 +43,17 @@ class GoogleCredentials(Base):
     expires_at = Column(DateTime, nullable=True)   # Optional: Store the access token expiry time
 
     user = relationship("User", back_populates="google_credentials")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, nullable=False, index=True, unique=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User", back_populates="refresh_tokens")
     
 async def get_user_manager(user_db: SQLAlchemyUserDatabase):
     yield UserManager(user_db)

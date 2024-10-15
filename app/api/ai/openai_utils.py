@@ -10,6 +10,8 @@ from fastapi import HTTPException
 from sqlalchemy.future import select
 from app.api.persona.utils import get_persona_system_message
 from uuid import UUID
+from datetime import datetime
+
 # Load environment variables from .env file
 load_dotenv() 
 
@@ -48,16 +50,26 @@ async def get_ai_response(prompt: str, user: User, db, conversation_id: UUID = N
         conversation_history.append({"role": "user", "content": prompt})
         user_message = Message(conversation_id=conversation_id, role="user", content=prompt)
         db.add(user_message)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        else:
+            print("Current date and time is: ",datetime.now())
+            conversation.updated_at = datetime.now()
         await db.commit()
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=conversation_history,
             max_tokens=400,
-            temperature=0.8
+            temperature=1
         )
         ai_response = response.choices[0].message.content.strip()
         ai_message = Message(conversation_id=conversation_id, role=persona.name, content=ai_response)
         db.add(ai_message)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        else:
+            print("Current date and time is: ",datetime.now())
+            conversation.updated_at = datetime.now()
         await db.commit()
         return ai_response
     except Exception as e:

@@ -9,6 +9,7 @@ from app.api.persona.routes import router as persona_router
 from app.api.ai.routes import router as ai_router
 from app.api.ai.conversations.routes import router as conversation_router
 from app.api.google.gmail.routes import router as gmail_router
+from app.api.google.calendar.routes import router as calendar_router
 from app.api.auth.manager import get_current_user
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI Assistant Backend")
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # Define JWTAuthMiddleware
 class JWTAuthMiddleware(BaseHTTPMiddleware):
@@ -52,6 +53,8 @@ app.include_router(persona_router, prefix=settings.API_PREFIX)
 app.include_router(ai_router, prefix=settings.API_PREFIX)
 app.include_router(conversation_router, prefix=settings.API_PREFIX)
 app.include_router(gmail_router, prefix=settings.API_PREFIX)
+app.include_router(calendar_router, prefix=settings.API_PREFIX)
+# app.include_router(calendar_router, prefix=settings.API_PREFIX)
 
 templates = Jinja2Templates(directory="app/templates")
 

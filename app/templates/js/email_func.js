@@ -30,9 +30,17 @@ document.addEventListener("DOMContentLoaded", function() {
   let currentConversationId = null;
   let isEditing = false;
 
+  // Ensure the button exists and attach event listener
   if (sendPromptButton) {
-    sendPromptButton.addEventListener("click", handleSendPrompt);
+    console.log("Send Prompt Button is here");
+    sendPromptButton.addEventListener("click", async function(event) {
+      console.log("Send Prompt button clicked");
+      await handleSendPrompt(event);
+    });
+  } else {
+    console.error("Send-Prompt-Button not found in the DOM.");
   }
+
   if (textInputForm) {
     textInputForm.addEventListener("submit", handleFormSubmit);
   }
@@ -52,20 +60,41 @@ document.addEventListener("DOMContentLoaded", function() {
     confirmButton.addEventListener("click", handleConfirm);
   }
 
-  function getAuthToken() {
-    return "your-auth-token";
-  }
-
   async function handleSendPrompt(event) {
     event.preventDefault();
     const userPrompt = document.getElementById("Input-2").value;
-
-    await getOrCreateConversation();
-
+    const conversationId = await getOrCreateConversation();
+    currentConversationId = conversationId;
+  
+    if (!conversationId) {
+      console.error("Failed to create or retrieve conversation ID.");
+      return;
+    }
+  
+    // Check if it's the first message in the conversation
+    const messagesResponse = await fetch(`/api/v1/ai/conversations/${currentConversationId}/messages`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${getAuthToken()}`
+      }
+    });
+  
+    if (!messagesResponse.ok) {
+      console.error("Failed to fetch messages");
+      return;
+    }
+  
+    const messages = await messagesResponse.json();
+  
+    if (messages.length === 0) {
+      // Generate a title for the conversation based on the prompt
+      await generateConversationTitle(currentConversationId, 'New Email Draft '+userPrompt);
+    }
+  
     showModalLoader();
-    const response = await draftEmail(userPrompt);
+    const response = await draftEmail(userPrompt,currentConversationId);
     hideModalLoader();
-
+  
     if (response) {
       recipientDisplay.textContent = response.recipient_names.join(", ");
       subjectDisplay.textContent = response.draft.drafted_subject;
@@ -75,65 +104,43 @@ document.addEventListener("DOMContentLoaded", function() {
       await searchContacts(response.recipient_names);
     }
   }
-
+  
   async function handleFormSubmit(event) {
     event.preventDefault();
   }
 
-  async function getOrCreateConversation() {
-    if (!currentConversationId) {
-      try {
-        const response = await fetch('/api/v1/ai/conversations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + getCookie('Authorization')
-          }
+  async function draftEmail(userPrompt, conversationId) {
+    try {
+        console.log("Inside Draft email function");
+
+        const response = await fetch(`${DRAFT_EMAIL_URL}?conversation_id=${conversationId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${getAuthToken()}`
+            },
+            body: JSON.stringify({
+                user_prompt: userPrompt
+            })
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to create conversation');
-        }
+        if (!response.ok) throw new Error("Failed to draft email");
+        const draftData = await response.json();
 
-        const data = await response.json();
-        currentConversationId = data.id;
-        console.log('New conversation created:', currentConversationId);
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  }
-
-  async function draftEmail(userPrompt) {
-    try {
-      const response = await fetch(DRAFT_EMAIL_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${getAuthToken()}`
-        },
-        body: JSON.stringify({ 
-          user_prompt: userPrompt,
-          conversation_id: currentConversationId
-        })
-      });
-      if (!response.ok) throw new Error("Failed to draft email");
-      return await response.json();
+        return draftData;
     } catch (error) {
-      console.error(error);
+        console.error(error);
     }
-  }
+}
+
 
   async function handleConfirmContact() {
     const recipientEmail = selectedContactEmail || contactSearchNameInput.value;
-
     if (!validateEmail(recipientEmail)) {
       alert("Please enter a valid email address.");
       return;
     }
-
     recipientDisplay.textContent = recipientEmail; 
-
     contactListModal.style.display = "none";
     confirmEmailModal.style.display = "block";
   }
@@ -203,14 +210,20 @@ document.addEventListener("DOMContentLoaded", function() {
     const to = recipientDisplay.textContent; 
     const subject = subjectDisplay.textContent; 
     const messageBody = bodyDisplay.innerHTML; 
-
-    await sendEmail(to, subject, messageBody, emailDraftId, currentConversationId);
+    console.log(currentConversationId);
+    try {
+      await sendEmail(to, subject, messageBody, emailDraftId, currentConversationId)
+      console.log("Email sent successfully!");
+      // Display the drafted email in the conversation after sending
+      displayDraftedEmail(subject, messageBody, to);
+    } catch (error) {
+      console.error("Error sending email:", error);
+    }
   }
 
   async function sendEmail(to, subject, messageBody, emailDraftId, conversationId) {
     try {
-      const url = `${SEND_EMAIL_URL}?email_draft_id=${emailDraftId}`;
-
+      const url = `${SEND_EMAIL_URL}?email_draft_id=${emailDraftId}&conversation_id=${conversationId}`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -224,12 +237,33 @@ document.addEventListener("DOMContentLoaded", function() {
           conversation_id: conversationId
         })
       });
-
       if (!response.ok) throw new Error("Failed to send email");
-      console.log("Email sent successfully!");
     } catch (error) {
-      console.error(error);
+      throw error;
     }
+  }
+
+  function displayDraftedEmail(subject, body, recipients) {
+    const messageContainer = document.createElement('div');
+    messageContainer.classList.add('message-container', 'drafted-email-message');
+    messageContainer.style.backgroundColor = 'black'; // Black background for drafted emails
+    messageContainer.style.color = 'white'; // White text for contrast
+
+    const subjectElement = document.createElement('div');
+    subjectElement.innerHTML = `<strong>Subject:</strong> ${subject}`;
+    
+    const recipientsElement = document.createElement('div');
+    recipientsElement.innerHTML = `<strong>Recipients:</strong> ${recipients}`;
+
+    const bodyElement = document.createElement('div');
+    bodyElement.innerHTML = `<strong>Body:</strong><br>${marked.parse(body)}`; // Render as Markdown
+
+    messageContainer.appendChild(subjectElement);
+    messageContainer.appendChild(recipientsElement);
+    messageContainer.appendChild(bodyElement);
+
+    inputOutputArea.appendChild(messageContainer);
+    inputOutputArea.scrollTop = inputOutputArea.scrollHeight; // Auto-scroll to bottom
   }
 
   async function handleRegenerate(event) {
@@ -238,22 +272,15 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("No AI response to regenerate.");
       return;
     }
-
     let userPrompt = document.getElementById("Input-2").value;
     userPrompt += " " + responseAreaDiv.innerText + " Please regenerate/rewrite the above email and make it even better and professional from scratch";
     responseAreaDiv.innerText = '';
-
-    // Explicitly create and append the loader element
     const loaderDiv = document.createElement('div');
     loaderDiv.className = 'loader';
     responseAreaDiv.appendChild(loaderDiv);
     loaderDiv.style.display = "block"; // Show the loader
-
-    const response = await draftEmail(userPrompt);
-
-    // Remove the loader after the response is received
+    const response = await draftEmail(userPrompt,currentConversationId);
     responseAreaDiv.removeChild(loaderDiv);
-
     if (response) {
       recipientDisplay.textContent = response.recipient_names.join(", ");
       subjectDisplay.textContent = response.draft.drafted_subject;
@@ -270,7 +297,6 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("No AI response to edit.");
       return;
     }
-
     if (!isEditing) {
       responseAreaDiv.contentEditable = true;
       responseAreaDiv.focus();
@@ -281,30 +307,20 @@ document.addEventListener("DOMContentLoaded", function() {
       editButton.textContent = "Edit";
       isEditing = false;
       editValue = responseAreaDiv.innerText;
-      // Save the edited content to the innerHTML directly
       responseAreaDiv.innerText = editValue; 
       bodyDisplay.innerText = editValue;
     }
   }
 
-
   function handleConfirm(event) {
     event.preventDefault();
-
-    // Get the content from the response area (use innerHTML directly)
     const recipient = recipientDisplay.textContent;
     const subject = subjectDisplay.textContent;
     const body = responseAreaDiv.innerHTML; 
-
-    // Update the elements in the confirm-email-modal (use correct IDs)
     document.getElementById("recipient-name-text").value = recipient;
     document.getElementById("Subject-Text").value = subject;        
     document.getElementById("body-area").innerHTML = body;          
-
-    // Hide the Mail-response-modal
     mailResponseModal.style.display = "none";
-
-    // Show the confirm-email-modal
     confirmEmailModal.style.display = "block";
   }
 

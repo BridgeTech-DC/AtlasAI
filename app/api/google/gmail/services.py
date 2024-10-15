@@ -1,14 +1,18 @@
+import asyncio
 import base64
-import json
+import re
+from datetime import datetime
 from email.mime.text import MIMEText
+from typing import List, Dict, Tuple
+from uuid import UUID
+import time
+from fastapi import FastAPI, HTTPException, status, Depends
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.auth.transport.requests import Request as GoogleRequest
-from app.models import GoogleCredentials
-from google.oauth2.credentials import Credentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException, status, Depends, Request
+from app.models import GoogleCredentials
 from app.api.auth.manager import get_current_user
 from app.api.auth.routes import refresh_google_token
 from app.models import User
@@ -19,68 +23,38 @@ from app.config import settings
 from app.api.persona.utils import get_persona_system_message
 from app.api.persona.models import Persona
 from app.api.ai.conversations.models import Conversation
-from uuid import UUID
-import re
-from functools import lru_cache, wraps
-import time
-import datetime
+from googleapiclient.http import BatchHttpRequest
 
-# If modifying these scopes, delete the file token.pickle.
 SCOPES = settings.SCOPES.split(",")
 
-# Cache settings
-CACHE_TIMEOUT = 10800  # Cache for 3 hours (10800 seconds)
-cache_data = {
-    "expiration": 0,
-    "senders": [],
-    "recipients": []
-}
+app = FastAPI()
 
-def timed_lru_cache(seconds: int, maxsize: int = 128):
-    def wrapper_cache(func):
-        func = lru_cache(maxsize=maxsize)(func)
-        func.lifetime = seconds
-        func.expiration = time.time() + func.lifetime
-        @wraps(func)
-        def wrapped_func(*args, **kwargs):
-            if time.time() >= func.expiration:
-                func.cache_clear()
-                func.expiration = time.time() + func.lifetime
-            return func(*args, **kwargs)
-        return wrapped_func
-    return wrapper_cache
-
-async def get_gmail_service(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), token: str = Depends(refresh_google_token)):
+async def get_gmail_service(user: User = Depends(get_current_user),
+                            db: AsyncSession = Depends(get_async_session),
+                            token: str = Depends(refresh_google_token)):
     """Gets the Gmail API service for the authenticated user."""
-    try:
-        print("Starting get_gmail_service function")
-        # if db is None:
-        #     print("Database session is None")
-        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database session is None")
-        
-        credentials = await db.execute(select(GoogleCredentials).where(GoogleCredentials.user_id == user.id))
-        credentials = credentials.scalar_one_or_none()
-        if not credentials:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google credentials not found for user.")
-        
-        creds_info = {
-            "token": credentials.access_token,
-            "refresh_token": credentials.refresh_token,
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "scopes": SCOPES
-        }
-        creds = Credentials.from_authorized_user_info(creds_info)
-        service = build('gmail', 'v1', credentials=creds)
-        return service
-    except Exception as e:
-        from traceback import print_exc; print_exc()
-        print(e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error getting Gmail service: {e}")
+    credentials = await db.execute(select(GoogleCredentials).where(
+        GoogleCredentials.user_id == user.id
+    ))
+    credentials = credentials.scalar_one_or_none()
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google credentials not found for user."
+        )
+    creds_info = {
+        "token": credentials.access_token,
+        "refresh_token": credentials.refresh_token,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "scopes": SCOPES
+    }
+    creds = Credentials.from_authorized_user_info(creds_info)
+    return build('gmail', 'v1', credentials=creds)
 
-def parse_email_header(header_value: str):
-    """Parses an email header value and extracts the name and email address using regex."""
+def parse_email_header(header_value: str) -> Tuple[str, str]:
+    """Parses an email header value and extracts the name and email address."""
     match = re.match(r'(.*?)(<.*?>)', header_value)
     if match:
         name = match.group(1).strip().strip('"')
@@ -88,78 +62,100 @@ def parse_email_header(header_value: str):
         return name, email
     return header_value, header_value
 
-@timed_lru_cache(seconds=CACHE_TIMEOUT)
-async def get_all_recipients_and_senders(service, user_email):
-    """Retrieves a list of all unique recipients and senders from the user's Gmail inbox."""
-    recipients = set()
-    senders = set()
-    # Get a list of all messages in the inbox (consider pagination if needed)
-    results = service.users().messages().list(userId='me', maxResults=500, q='in:inbox').execute()
-    messages = results.get('messages', [])
-    for message in messages:
-        msg = service.users().messages().get(userId='me', id=message['id']).execute()
-        headers = msg['payload']['headers']
-        for header in headers:
-            if (header['name'] == 'From'):
-                name, email = parse_email_header(header['value'])
-                senders.add((name, email))
-            elif (header['name'] == 'To'):
-                for recipient in header['value'].split(', '):
-                    name, email = parse_email_header(recipient)
-                    recipients.add((name, email))
-    return list(senders), list(recipients)
-
-async def search_contacts(recipient_names: list, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session)):
-    """Searches the user's Gmail mailbox for matching names and returns email addresses."""
+async def fetch_messages_in_batch(service, message_ids, recipient_name_lower, suggested_recipients):
+    """Fetches multiple messages in a single batch request."""
     try:
-        service = await get_gmail_service(user=user, db=db)
-        print("Gmail service obtained successfully")
-        
-        # Check if the cache contains the list or fetch if cache is stale
-        current_time = time.time()
-        if current_time >= cache_data["expiration"]:
-            all_senders, all_recipients = await get_all_recipients_and_senders(service, user.email)
-            cache_data["senders"] = all_senders
-            cache_data["recipients"] = all_recipients
-            cache_data["expiration"] = current_time + CACHE_TIMEOUT
-        else:
-            all_senders = cache_data["senders"]
-            all_recipients = cache_data["recipients"]
-        
-        suggested_recipients = set()  # Use a set to store unique contacts
-        for recipient_name in recipient_names:
-            recipient_name_lower = recipient_name.lower()
-            for name, email in all_senders + all_recipients:
-                name_lower = name.lower()
-                email_lower = email.lower()
-                # Check for matches in name or email (case-insensitive)
-                if (
-                    recipient_name_lower == name_lower or
-                    recipient_name_lower in name_lower or
-                    recipient_name_lower == email_lower or
-                    recipient_name_lower in email_lower
-                ):
-                    suggested_recipients.add((name, email))  # Add tuple to set
-        # Convert set of tuples back to list of dictionaries
-        suggested_recipients_list = [{"name": name, "email": email} for name, email in suggested_recipients]
-        return {"suggested_recipients": suggested_recipients_list}
+        batch = service.new_batch_http_request()
+
+        def callback(request_id, response, exception):
+            if exception is not None:
+                print(f"Error fetching message {request_id}: {exception}")
+            else:
+                headers = response['payload']['headers']
+                for header in headers:
+                    if header['name'] == 'From':
+                        name, email = parse_email_header(header['value'])
+                        if recipient_name_lower in name.lower() or recipient_name_lower in email.lower():
+                            suggested_recipients.add((name, email))
+                    elif header['name'] == 'To':
+                        for recipient in header['value'].split(', '):
+                            name, email = parse_email_header(recipient)
+                            if recipient_name_lower in name.lower() or recipient_name_lower in email.lower():
+                                suggested_recipients.add((name, email))
+
+        for message_id in message_ids:
+            batch.add(service.users().messages().get(userId='me', id=message_id), callback=callback)
+
+        batch.execute()  # Execute the batch request synchronously
+
     except HttpError as error:
-        print(f'An error occurred: {error}')
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error searching Gmail: {error}")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error searching contacts: {e}")
+        print(f'An error occurred during batch request: {error}')
+
+async def fetch_and_process_messages(service, query: str, recipient_name_lower: str) -> Tuple[set, int]:
+    """Fetches messages and processes them asynchronously using batch requests."""
+    suggested_recipients = set()
+    total_messages = 0
+    next_page_token = None
+
+    try:
+        while True:
+            response = service.users().messages().list(
+                userId='me', q=query, maxResults=500, pageToken=next_page_token
+            ).execute()
+
+            messages = response.get('messages', [])
+            total_messages += len(messages)
+
+            message_ids = [message['id'] for message in messages]
+
+            # Batch requests in chunks of 100
+            for i in range(0, len(message_ids), 100):
+                chunk = message_ids[i:i + 100]
+                await fetch_messages_in_batch(service, chunk, recipient_name_lower, suggested_recipients)
+
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
+
+        return suggested_recipients, total_messages
+    except HttpError as error:
+        print(f'An error occurred while fetching messages: {error}')
+        return suggested_recipients, total_messages
+
+@app.get("/search_contacts")
+async def search_contacts(recipient_names: List[str],
+                          user: User = Depends(get_current_user),
+                          db: AsyncSession = Depends(get_async_session)
+                          ) -> Dict[str, List[Dict[str, str]]]:
+    """Searches the user's Gmail mailbox for contacts."""
+    service = await get_gmail_service(user=user, db=db)
+    all_suggested_recipients = set()
+    total_messages_async = 0
+
+    # --- Asynchronous Approach ---
+    start_time_async = time.time()
+    tasks = [fetch_and_process_messages(service, f'to:{name} OR from:{name}', name.lower()) for name in recipient_names]
+    results = await asyncio.gather(*tasks)
+    for suggested, total in results:
+        all_suggested_recipients.update(suggested)
+        total_messages_async += total
+    end_time_async = time.time()
+
+    print(f"Time taken with asyncio: {end_time_async - start_time_async} seconds")
+    print(f"Total unique contacts fetched with asyncio: {len(all_suggested_recipients)}")
+    print(f"Total messages iterated with asyncio: {total_messages_async}")
+
+    suggested_recipients_list = [{"name": name, "email": email} for name, email in all_suggested_recipients]
+    return {"suggested_recipients": suggested_recipients_list}
 
 async def draft_email(user_prompt: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: UUID = None):
     """Drafts an email using ChatGPT, including subject and body, based on user prompt."""
     try:
-        # Fetch the persona details
         persona = await db.get(Persona, user.selected_persona_id)
         if not persona:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona not found.")
-        # Define clear instructions for ChatGPT
         system_message = get_persona_system_message(persona)
-        current_date = datetime.datetime.today().strftime('%d/%m/%Y')
-        current_time = datetime.datetime.now().strftime("%I:%M %p")
+        current_date = datetime.today().strftime('%d/%m/%Y')
         prompt = f"""
         You purpose is to helping a user draft an email.
         Please generate a professional and concise email, including the subject and body based on the user given prompt.
@@ -180,7 +176,6 @@ async def draft_email(user_prompt: str, user: User = Depends(get_current_user), 
         email_content = response.choices[0].message.content.strip()
         subject, *body_lines = email_content.split("\n")
         body = "\n".join(body_lines)
-        # Create or fetch the conversation
         if conversation_id is None:
             conversation = Conversation(user_id=user.id, persona_id=user.selected_persona_id)
             db.add(conversation)
@@ -191,7 +186,6 @@ async def draft_email(user_prompt: str, user: User = Depends(get_current_user), 
             conversation = await db.get(Conversation, conversation_id)
             if not conversation:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-        # Create and save the email draft
         email_draft = EmailDraft(
             conversation_id=conversation_id,
             recipient_name="",
@@ -212,39 +206,19 @@ async def draft_email(user_prompt: str, user: User = Depends(get_current_user), 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error drafting email: {e}")
 
-async def send_email(to: str, subject: str, message_body: str, email_draft_id: int, request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: UUID = None):
+async def send_email(to: str, subject: str, message_body: str, email_draft_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_async_session), conversation_id: UUID = None):
     """Sends an email using the Gmail API."""
     try:
-        print("Starting send_email function")
         service = await get_gmail_service(user=user, db=db)
-        print("Gmail service obtained successfully")
-        
-        # Ensure we are accessing the email attribute from the user object
-        if not hasattr(user, 'email'):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User object does not have an email attribute")
-        
         message = MIMEText(message_body, 'html')
         message['to'] = to
         message['from'] = user.email
         message['subject'] = subject
-
-        # Encode the message as a base64url string
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-        # Send the email
         send_message = (service.users().messages().send(userId='me', body={'raw': raw_message}).execute())
-        print(f'Message Id: {send_message["id"]}')
-
-        # Fetch the email draft to get the conversation ID
         email_draft = await db.get(EmailDraft, email_draft_id)
         if not email_draft:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email draft not found")
-
-        # Get conversation_id from request body (if not provided as path parameter)
-        request_body = await request.json()
-        conversation_id = request_body.get("conversation_id")
-
-        # Create and save SentEmail object
         sent_email = SentEmail(
             email_draft_id=email_draft_id,
             recipient_email=to,
@@ -253,8 +227,6 @@ async def send_email(to: str, subject: str, message_body: str, email_draft_id: i
         db.add(sent_email)
         await db.commit()
         return {"message": "Email sent successfully!"}
-
     except Exception as e:
-        print(f"Exception occurred: {e}")
-        from traceback import print_exc; print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error sending email: {e}")
+    

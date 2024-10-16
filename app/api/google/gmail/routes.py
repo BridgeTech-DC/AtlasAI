@@ -4,12 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_session
 from app.models import User
 from app.api.auth.manager import get_current_user
-from .schemas import DraftEmailRequest, SendEmailRequest, ContactSearchResponse, SentEmailResponse
+from .schemas import DraftEmailRequest, SendEmailRequest, ContactSearchResponse, SentEmailResponse, ContactSearchRequest
 from .models import SentEmail
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from typing import List, Dict, Tuple
-from .services import draft_email, send_email
+from .services import draft_email, send_email, search_contacts
 import spacy
 from uuid import UUID
 import redis.asyncio as redis
@@ -126,6 +126,17 @@ async def auto_complete_suggestions(
     cached_contacts = await get_cached_contacts(user.id)
     suggestions = [contact for contact in cached_contacts if query.lower() in contact["name"].lower() or query.lower() in contact["email"].lower()]
     return suggestions
+
+@router.post("/gmail/search_contacts", response_model=ContactSearchResponse)
+async def search_contacts_route(
+    contact_search_request: ContactSearchRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """Route for searching contacts."""
+    recipient_names = contact_search_request.recipient_name
+    return await search_contacts(recipient_names, user, db)
+
 
 @router.post("/gmail/draft", response_model=dict)
 async def draft_email_route(

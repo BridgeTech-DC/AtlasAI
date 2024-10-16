@@ -122,7 +122,6 @@ async def fetch_and_process_messages(service, query: str, recipient_name_lower: 
         print(f'An error occurred while fetching messages: {error}')
         return suggested_recipients, total_messages
 
-@app.get("/search_contacts")
 async def search_contacts(recipient_names: List[str],
                           user: User = Depends(get_current_user),
                           db: AsyncSession = Depends(get_async_session)

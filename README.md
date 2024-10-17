@@ -82,6 +82,8 @@ This repository contains the backend code for an AI Voice Assistant application 
 2. **Access the Application:**
    - Open your web browser and go to `https://127.0.0.1:8000` (or the port you specified).
 
+## Deploying
+ - For now, just testing I have push access to this repo
 ## Usage
 
 - **Authentication:** Users can sign up or log in using their Google accounts.
